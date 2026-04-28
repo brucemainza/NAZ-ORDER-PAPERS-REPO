@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary: #198A00;
+  --primary-dark: #126600;
+  --primary-light: #E8F5E4;
+  --accent: #D4501A;
+  --accent-light: #FDF0EB;
+  --black: #0D0D0D;
+  --surface: #FFFFFF;
+  --bg: #F4F6F3;
+  --border: #D9DDD8;
+  --muted: #6B7280;
+  --sidebar: #0A2E05;
+  --sidebar-text: #C8E6C3;
+  --danger: #B91C1C;
+  --success: #15803D;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    height: 100%;
+  }
+
+  body {
+    min-height: 100%;
+    background: var(--bg);
+    color: var(--black);
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  body,
+  input,
+  select,
+  textarea,
+  button {
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    color: var(--black);
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply rounded-md border border-[--border] bg-[--surface] shadow-sm;
+  }
+
+  .table-stripes tbody tr:nth-child(odd) {
+    background: var(--bg);
+  }
+
+  .table-stripes tbody tr:nth-child(even) {
+    background: var(--surface);
+  }
+}
