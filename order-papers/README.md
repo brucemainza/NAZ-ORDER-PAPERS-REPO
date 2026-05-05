@@ -12,7 +12,7 @@ Order Papers System is an internal parliamentary document management and similar
 
 ## Tech Stack
 
-- Next.js 14 App Router with TypeScript
+- Next.js 14 App Router 
 - Tailwind CSS
 - Zustand for auth state
 - Axios for API communication

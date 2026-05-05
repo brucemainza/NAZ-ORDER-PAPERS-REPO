@@ -8,7 +8,7 @@ const loginSchema = z.object({
 });
 export async function POST(request) {
     const body = await request.json();
-    const parsed = loginSchema.safeParse(body);
+    const parsed = await loginSchema.safeParse(body);
     if (!parsed.success) {
         return NextResponse.json({
             message: "Invalid credentials payload.",
@@ -26,3 +26,4 @@ export async function POST(request) {
     response.cookies.set(AUTH_COOKIE_NAME, token, getAuthCookieOptions());
     return response;
 }
+ 
