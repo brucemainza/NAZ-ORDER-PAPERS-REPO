@@ -1,0 +1,14 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: naz_order_papers_db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: naz_user
+      POSTGRES_PASSWORD: naz_password
+      POSTGRES_DB: naz_order_papers
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+volumes:
+  pgdata:
