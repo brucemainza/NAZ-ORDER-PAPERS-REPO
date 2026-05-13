@@ -1,0 +1,18 @@
+{
+  "include": ["order-papers/backend/app"],
+  "exclude": [
+    "**/__pycache__",
+    "order-papers/backend/.venv",
+    "order-papers/frontend/node_modules",
+    "order-papers/frontend/.next"
+  ],
+  "executionEnvironments": [
+    {
+      "root": "order-papers/backend",
+      "extraPaths": ["order-papers/backend"]
+    }
+  ],
+  "venvPath": "order-papers/backend",
+  "venv": ".venv",
+  "pythonVersion": "3.14"
+}
