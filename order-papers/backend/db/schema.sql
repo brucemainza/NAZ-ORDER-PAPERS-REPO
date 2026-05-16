@@ -73,3 +73,18 @@ CREATE INDEX IF NOT EXISTS idx_parliamentary_records_embedding
   USING ivfflat (embedding vector_cosine_ops)
   WITH (lists = 100)
   WHERE embedding IS NOT NULL;
+
+
+CREATE TABLE IF NOT EXISTS user_sessions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_jti text NOT NULL,
+  ip_address text,
+  user_agent text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  expires_at timestamptz NOT NULL,
+  revoked_at timestamptz
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_token_jti ON user_sessions(token_jti);
