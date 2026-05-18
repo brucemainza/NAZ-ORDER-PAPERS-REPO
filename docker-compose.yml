@@ -1,0 +1,71 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: naz_order_papers_db
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: naz_user
+      POSTGRES_PASSWORD: naz_password
+      POSTGRES_DB: naz_order_papers
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./backend/db/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U naz_user -d naz_order_papers"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    container_name: naz_order_papers_backend
+    ports:
+      - "8080:8000"
+    environment:
+      - DATABASE_URL=postgresql+psycopg://naz_user:naz_password@db:5432/naz_order_papers
+      - FRONTEND_ORIGIN=http://localhost:3000
+      - JWT_SECRET=${JWT_SECRET:-naz-order-papers-jwt-secret-change-in-production}
+    volumes:
+      - ./backend/app:/app/app
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    container_name: naz_order_papers_frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://naz_user:naz_password@db:5432/naz_order_papers
+      - JWT_SECRET=${JWT_SECRET:-naz-order-papers-jwt-secret-change-in-production}
+      - NEXT_PUBLIC_API_URL=http://localhost:3000
+      - NEXT_PUBLIC_BACKEND_URL=http://localhost:8080
+      - BACKEND_INTERNAL_URL=http://backend:8000
+      - NODE_ENV=development
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      db:
+        condition: service_healthy
+      backend:
+        condition: service_started
+
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: naz_portainer
+    ports:
+      - "8000:8000"
+      - "9000:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    restart: always
+
+volumes:
+  pgdata:
+  portainer_data:
