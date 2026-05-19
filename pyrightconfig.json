@@ -1,18 +1,18 @@
 {
-  "include": ["order-papers/backend/app"],
+  "include": ["backend/app"],
   "exclude": [
     "**/__pycache__",
-    "order-papers/backend/.venv",
-    "order-papers/frontend/node_modules",
-    "order-papers/frontend/.next"
+    "backend/.venv",
+    "frontend/node_modules",
+    "frontend/.next", "**/node_modules", "**/.*"
   ],
   "executionEnvironments": [
     {
-      "root": "order-papers/backend",
-      "extraPaths": ["order-papers/backend"]
+      "root": "backend",
+      "extraPaths": ["backend"]
     }
   ],
-  "venvPath": "order-papers/backend",
+  "venvPath": "backend",
   "venv": ".venv",
-  "pythonVersion": "3.14"
+  "pythonVersion": "3.11"
 }

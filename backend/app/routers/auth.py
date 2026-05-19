@@ -1,0 +1,125 @@
+from datetime import datetime, timezone, timedelta
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.database import get_db
+from app.lib.auth import create_access_token, verify_access_token, verify_password
+from app.models.models import User, UserSession
+from app.schemas.auth import LoginRequest, LoginResponse, UserOut
+
+router = APIRouter(prefix="/auth", tags=["auth"])
+security = HTTPBearer(auto_error=False)
+
+
+@router.post("/login", response_model=LoginResponse)
+def login(request: LoginRequest, req: Request, db: Session = Depends(get_db)):
+    employee_id = request.employee_id.strip().upper()
+
+    result = db.execute(select(User).where(User.employee_id == employee_id))
+    user = result.scalars().first()
+
+    if not user or user.status != "Active":
+        raise HTTPException(status_code=401, detail="Invalid employee ID or password.")
+
+    if not user.password_hash:
+        raise HTTPException(status_code=401, detail="Invalid employee ID or password.")
+
+    if not verify_password(request.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid employee ID or password.")
+
+    user.last_login_at = datetime.now(timezone.utc)
+
+    token, jti = create_access_token({
+        "sub": str(user.id),
+        "employeeId": user.employee_id,
+        "name": user.name,
+        "role": user.role,
+        "status": user.status,
+    })
+
+    ip_address = req.headers.get("x-forwarded-for", "").split(",")[0].strip() or req.client.host
+    user_agent = req.headers.get("user-agent")
+
+    session = UserSession(
+        user_id=user.id,
+        jti=jti,
+        issued_at=datetime.now(timezone.utc),
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=8),
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
+    db.add(session)
+    db.commit()
+
+    return LoginResponse(
+        token=token,
+        user=UserOut(
+            id=str(user.id),
+            employeeId=user.employee_id,
+            name=user.name,
+            role=user.role,
+            status=user.status,
+            lastLogin=user.last_login_at.isoformat() if user.last_login_at else None,
+        ),
+    )
+
+
+@router.get("/me", response_model=UserOut)
+def me(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    payload = verify_access_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+
+    user_id = UUID(payload.get("sub"))
+    jti = payload.get("jti")
+
+    session_result = db.execute(
+        select(UserSession).where(
+            UserSession.jti == jti,
+            UserSession.revoked_at.is_(None),
+        )
+    )
+    session = session_result.scalars().first()
+
+    if not session:
+        raise HTTPException(status_code=401, detail="Session revoked or expired")
+
+    result = db.execute(select(User).where(User.id == user_id))
+    user = result.scalars().first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user.status != "Active":
+        raise HTTPException(status_code=401, detail="Account inactive")
+
+    return UserOut(
+        id=str(user.id),
+        employeeId=user.employee_id,
+        name=user.name,
+        role=user.role,
+        status=user.status,
+        lastLogin=user.last_login_at.isoformat() if user.last_login_at else None,
+    )
+
+
+@router.post("/logout")
+def logout(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
+    if credentials:
+        payload = verify_access_token(credentials.credentials)
+        if payload:
+            jti = payload.get("jti")
+            if jti:
+                result = db.execute(select(UserSession).where(UserSession.jti == jti))
+                session = result.scalars().first()
+                if session:
+                    session.revoked_at = datetime.now(timezone.utc)
+                    db.commit()
+    return {"success": True}
