@@ -1,0 +1,17 @@
+node_modules/
+.next/
+frontend/node_modules
+frontend/.next
+frontend/out
+frontend/coverage
+frontend/.env.local
+frontend/.vercel
+backend/.env
+backend/.venv
+backend/**/__pycache__/
+backend/**/*.py[cod]
+*.log
+.DS_Store
+.venv/
+__pycache__/
+*.pyc
