@@ -10,6 +10,7 @@ const loginSchema = z.object({
 const BACKEND_URL = process.env.BACKEND_INTERNAL_URL || "http://backend:8000";
 
 export const runtime = 'nodejs';
+export const dynamic = "force-dynamic";
 
 export async function POST(request) {
     const body = await request.json();

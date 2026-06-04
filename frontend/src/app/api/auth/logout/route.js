@@ -5,6 +5,7 @@ import { AUTH_COOKIE_NAME } from "@/lib/auth";
 const BACKEND_URL = process.env.BACKEND_INTERNAL_URL || "http://backend:8000";
 
 export const runtime = 'nodejs';
+export const dynamic = "force-dynamic";
 
 export async function POST() {
     const token = cookies().get(AUTH_COOKIE_NAME)?.value;

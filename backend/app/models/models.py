@@ -64,7 +64,6 @@ class ParliamentaryRecord(Base):
     subject: Mapped[str] = mapped_column(Text)
     full_text: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(Text)
-    embedding: Mapped[Optional[List[float]]] = mapped_column(ARRAY(float), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     session: Mapped["ParliamentarySession"] = relationship(back_populates="records")
@@ -75,8 +74,9 @@ class SearchLog(Base):
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     user_id: Mapped[Optional[UUID]] = mapped_column(PostgresUUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    query: Mapped[str] = mapped_column(Text)
-    result_count: Mapped[int] = mapped_column(default=0)
+    query_text: Mapped[str] = mapped_column(Text)
+    session_id: Mapped[Optional[UUID]] = mapped_column(PostgresUUID(as_uuid=True), ForeignKey("parliamentary_sessions.id"), nullable=True)
+    top_result_ids: Mapped[Optional[List[UUID]]] = mapped_column(ARRAY(PostgresUUID(as_uuid=True)), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
