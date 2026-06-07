@@ -110,11 +110,17 @@ PostgreSQL 16 with pgvector extension. Key tables:
    npm run dev
 
 ## Current Limitations
-   - Frontend dashboard, audit, reports, and submit pages still use mock data
    - No password reset or change-password flow
    - Admin user management page exists but is not wired to backend CRUD
    - pgvector search requires pre-computed embeddings (not yet generated for seed data)
    - No CSV upload UI (script exists at backend/scripts/ingest_csv.py)
+
+## Implementation Notes
+- New submissions are persisted as `parliamentary_records` and connected to parliamentary sessions.
+- Submitted items are evaluated against historical records using BM25 and pgvector similarity.
+- Review decisions are stored in `review_decisions` and update record status to support duplicate handling.
+- Audit events are persisted for login, logout, submission, search, record retrieval, similarity lookup, duplicate review, and report access.
+- Reports are returned from `/reports` and include session summaries, similarity match rate, member activity, and department activity.
 
 ## Contributing
 This is a team project with three active contributors. Coordinate branch naming:

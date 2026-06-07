@@ -8,7 +8,6 @@ import { Select } from "@/components/ui/Select";
 import { Spinner } from "@/components/ui/Spinner";
 import { Textarea } from "@/components/ui/Textarea";
 import { Toast } from "@/components/ui/Toast";
-import { useAuth } from "@/hooks/useAuth";
 import { useSubmit } from "@/hooks/useSubmit";
 const submitSchema = z
     .object({
@@ -31,8 +30,7 @@ const submitSchema = z
 });
 export function SubmitForm({ sessions }) {
     var _a, _b, _c, _d, _e, _f, _g;
-    const { user } = useAuth();
-    const { isSubmitting, submitSubmission } = useSubmit();
+    const { error, isSubmitting, submitSubmission } = useSubmit();
     const { register, handleSubmit, watch, formState: { errors }, } = useForm({
         resolver: zodResolver(submitSchema),
         defaultValues: {
@@ -46,7 +44,6 @@ export function SubmitForm({ sessions }) {
     });
     const selectedType = watch("type");
     const onSubmit = async (values) => {
-        var _a;
         await submitSubmission({
             type: values.type,
             sessionId: values.sessionId,
@@ -54,7 +51,7 @@ export function SubmitForm({ sessions }) {
             ministry: values.type === "Question" ? values.ministry : undefined,
             subject: values.subject,
             fullText: values.fullText,
-        }, (_a = user === null || user === void 0 ? void 0 : user.name) !== null && _a !== void 0 ? _a : "Authenticated Clerk");
+        });
     };
     return (<div className="space-y-5 rounded-md border border-[--border] bg-white p-6 shadow-sm">
       <div className="grid gap-5 md:grid-cols-2">
@@ -91,6 +88,7 @@ export function SubmitForm({ sessions }) {
       </div>
 
       <Toast variant="info" title="Similarity review will run automatically" description="The submission will be checked against historical records before you land on the result review screen."/>
+      {error ? <Toast variant="error" title="Submission failed" description={error}/> : null}
 
       <div className="flex justify-end">
         <Button onClick={handleSubmit(onSubmit)} disabled={isSubmitting}>

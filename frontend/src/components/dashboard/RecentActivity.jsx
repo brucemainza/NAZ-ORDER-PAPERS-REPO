@@ -1,14 +1,18 @@
 import { Badge } from "@/components/ui/Badge";
 import { Table } from "@/components/ui/Table";
-import { getSessionById } from "@/lib/mockData";
 import { formatDate } from "@/lib/utils";
 const statusVariantMap = {
     Pending: "pending",
+    "Pending Review": "pending",
     Reviewed: "reviewed",
     Duplicate: "duplicate",
     Clear: "clear",
+    "Clear (New)": "clear",
+    "Substantially Similar": "similar",
+    Historical: "reviewed",
 };
-export function RecentActivity({ submissions }) {
+export function RecentActivity({ submissions, sessions = [] }) {
+    const sessionMap = new Map(sessions.map((session) => [session.id, session.name]));
     const columns = [
         {
             key: "type",
@@ -18,7 +22,7 @@ export function RecentActivity({ submissions }) {
         {
             key: "session",
             header: "Session",
-            render: (row) => { var _a, _b; return (_b = (_a = getSessionById(row.sessionId)) === null || _a === void 0 ? void 0 : _a.name) !== null && _b !== void 0 ? _b : "Unknown Session"; },
+            render: (row) => sessionMap.get(row.sessionId) || "Unknown Session",
         },
         {
             key: "submittedBy",
@@ -33,7 +37,7 @@ export function RecentActivity({ submissions }) {
         {
             key: "status",
             header: "Status",
-            render: (row) => <Badge variant={statusVariantMap[row.status]}>{row.status}</Badge>,
+            render: (row) => <Badge variant={statusVariantMap[row.status] || "info"}>{row.status}</Badge>,
         },
     ];
     return <Table columns={columns} data={submissions} rowKey={(row) => row.id} emptyMessage="No recent submissions found."/>;

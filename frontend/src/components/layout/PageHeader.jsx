@@ -5,6 +5,9 @@ function prettifySegment(segment) {
     if (!segment) {
         return "Home";
     }
+    if (segment === "search") {
+        return "Submissions";
+    }
     if (segment.startsWith("sub-") || segment.startsWith("match-")) {
         return "Result Record";
     }

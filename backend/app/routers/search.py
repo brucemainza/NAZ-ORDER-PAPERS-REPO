@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import ParliamentaryRecord, SearchLog
+from app.deps import add_audit_log, get_current_user, request_ip
+from app.models import ParliamentaryRecord, SearchLog, User
 from app.retrieval.bm25 import rank_records
 from app.schemas.search import SearchRequest, SearchResponse, SearchResultOut
 
@@ -13,7 +14,9 @@ router = APIRouter(prefix="/search", tags=["search"])
 @router.post("", response_model=SearchResponse)
 def search_records(
     search: SearchRequest,
+    request: Request,
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> SearchResponse:
     query = select(ParliamentaryRecord)
 
@@ -29,10 +32,19 @@ def search_records(
     result_ids = [match.record.id for match in ranked_matches]
     db.add(
         SearchLog(
+            user_id=user.id,
             query_text=search.query_text,
             session_id=search.session_id,
             top_result_ids=result_ids,
         )
+    )
+    add_audit_log(
+        db,
+        user_id=user.id,
+        action="search",
+        entity_type="search_log",
+        details=search.query_text,
+        ip_address=request_ip(request),
     )
     db.commit()
 

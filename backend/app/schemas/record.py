@@ -15,6 +15,22 @@ class RecordListOut(BaseModel):
     subject: str
     status: str
     created_at: datetime
+    session_name: str | None = None
+
+    @classmethod
+    def from_orm(cls, obj):
+        data = {
+            'id': obj.id,
+            'item_type': obj.item_type,
+            'session_id': obj.session_id,
+            'member': obj.member,
+            'ministry': obj.ministry,
+            'subject': obj.subject,
+            'status': obj.status,
+            'created_at': obj.created_at,
+            'session_name': obj.session.name if obj.session else None,
+        }
+        return cls(**data)
 
 
 class RecordDetailOut(RecordListOut):

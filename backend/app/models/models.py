@@ -85,11 +85,16 @@ class ReviewDecision(Base):
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     record_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), ForeignKey("parliamentary_records.id"))
-    similar_record_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), ForeignKey("parliamentary_records.id"))
+    similar_record_id: Mapped[Optional[UUID]] = mapped_column(PostgresUUID(as_uuid=True), ForeignKey("parliamentary_records.id"), nullable=True)
+    decision: Mapped[str] = mapped_column(Text)
     is_duplicate: Mapped[bool] = mapped_column(default=False)
     reviewer_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), ForeignKey("users.id"))
     notes: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    record: Mapped["ParliamentaryRecord"] = relationship(foreign_keys=[record_id])
+    similar_record: Mapped[Optional["ParliamentaryRecord"]] = relationship(foreign_keys=[similar_record_id])
+    reviewer: Mapped["User"] = relationship()
 
 
 class AuditLog(Base):
@@ -103,3 +108,5 @@ class AuditLog(Base):
     details: Mapped[Optional[str]] = mapped_column(Text)
     ip_address: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    user: Mapped[Optional["User"]] = relationship()

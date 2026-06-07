@@ -32,6 +32,11 @@ API docs auto-generate at http://localhost:8000/docs
 | GET    | `/sessions`      | List parliamentary sessions                      |
 | GET    | `/records`       | List records (filter by session\_id, item\_type) |
 | GET    | `/records/{id}`  | Single record detail                             |
+| GET    | `/records/{id}/similar` | Previously addressed record candidates       |
+| POST   | `/records/{id}/reviews` | Record clerk review decisions                 |
+| POST   | `/submissions`   | Submit a new question or motion                 |
+| GET    | `/audit`         | Authorized audit trail access                    |
+| GET    | `/reports`       | Operational reports and activity summaries       |
 | POST   | `/search`        | BM25 text search                                 |
 | POST   | `/search/vector` | pgvector cosine similarity                       |
 

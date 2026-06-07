@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.deps import add_audit_log, request_ip
 from app.lib.auth import create_access_token, verify_access_token, verify_password
 from app.models.models import User, UserSession
 from app.schemas.auth import LoginRequest, LoginResponse, UserOut
@@ -41,7 +42,7 @@ def login(request: LoginRequest, req: Request, db: Session = Depends(get_db)):
         "status": user.status,
     })
 
-    ip_address = req.headers.get("x-forwarded-for", "").split(",")[0].strip() or req.client.host
+    ip_address = request_ip(req)
     user_agent = req.headers.get("user-agent")
 
     session = UserSession(
@@ -53,6 +54,15 @@ def login(request: LoginRequest, req: Request, db: Session = Depends(get_db)):
         user_agent=user_agent,
     )
     db.add(session)
+    add_audit_log(
+        db,
+        user_id=user.id,
+        action="login",
+        entity_type="auth",
+        entity_id=str(session.id),
+        details=user.employee_id,
+        ip_address=ip_address,
+    )
     db.commit()
 
     return LoginResponse(
@@ -111,15 +121,25 @@ def me(credentials: HTTPAuthorizationCredentials = Depends(security), db: Sessio
 
 
 @router.post("/logout")
-def logout(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
+def logout(req: Request, credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
     if credentials:
         payload = verify_access_token(credentials.credentials)
         if payload:
+            user_id = payload.get("sub")
             jti = payload.get("jti")
             if jti:
                 result = db.execute(select(UserSession).where(UserSession.jti == jti))
                 session = result.scalars().first()
                 if session:
                     session.revoked_at = datetime.now(timezone.utc)
+                    add_audit_log(
+                        db,
+                        user_id=UUID(user_id) if user_id else None,
+                        action="logout",
+                        entity_type="auth",
+                        entity_id=str(session.id),
+                        details=jti,
+                        ip_address=request_ip(req),
+                    )
                     db.commit()
     return {"success": True}

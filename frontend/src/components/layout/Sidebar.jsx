@@ -1,5 +1,5 @@
 "use client";
-import { BarChart2, Calendar, ClipboardList, FilePlus, LayoutDashboard, LogOut, Search, Users, } from "lucide-react";
+import { BarChart2, Calendar, ClipboardList, FilePlus, File, LayoutDashboard, LogOut, Users, } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, adminOnly: false },
     { href: "/submit", label: "Submit", icon: FilePlus, adminOnly: false },
-    { href: "/search", label: "Search", icon: Search, adminOnly: false },
+    { href: "/search", label: "Submissions", icon: File, adminOnly: false },
     { href: "/sessions", label: "Sessions", icon: Calendar, adminOnly: true },
     { href: "/users", label: "Users", icon: Users, adminOnly: true },
     { href: "/audit", label: "Audit Log", icon: ClipboardList, adminOnly: true },

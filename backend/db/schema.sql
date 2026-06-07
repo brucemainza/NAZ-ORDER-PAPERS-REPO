@@ -47,10 +47,12 @@ CREATE TABLE IF NOT EXISTS search_logs (
 CREATE TABLE IF NOT EXISTS review_decisions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   record_id uuid NOT NULL REFERENCES parliamentary_records(id),
+  similar_record_id uuid REFERENCES parliamentary_records(id),
   decision text NOT NULL CHECK (decision IN ('Clear (New)', 'Duplicate', 'Substantially Similar')),
+  is_duplicate boolean NOT NULL DEFAULT false,
   notes text,
-  decided_by uuid REFERENCES users(id),
-  decided_at timestamptz NOT NULL DEFAULT now()
+  reviewer_id uuid REFERENCES users(id),
+  created_at timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS audit_logs (
@@ -58,6 +60,9 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   user_id uuid REFERENCES users(id),
   action text NOT NULL,
   item_reference text,
+  entity_type text,
+  entity_id text,
+  details text,
   ip_address text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
