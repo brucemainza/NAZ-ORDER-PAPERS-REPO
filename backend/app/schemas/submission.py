@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.search import SearchResultOut
 
@@ -15,6 +15,11 @@ class SubmissionCreate(BaseModel):
     answer_type: Literal["Oral", "Written"] | None = None
     subject: str = Field(min_length=5, max_length=500)
     full_text: str = Field(min_length=40)
+
+    @field_validator("member", "ministry", "subject", "full_text", mode="before")
+    @classmethod
+    def strip_text_fields(cls, value):
+        return value.strip() if isinstance(value, str) else value
 
     @model_validator(mode="after")
     def validate_question_ministry(self):
