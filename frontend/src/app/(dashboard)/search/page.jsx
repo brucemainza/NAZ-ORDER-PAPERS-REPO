@@ -13,7 +13,7 @@ const PAGE_SIZE = 15;
 export default function SearchPage() {
     const [sessions, setSessions] = useState([]);
     const [records, setRecords] = useState([]);
-    const [filters, setFilters] = useState({ query: "", sessionId: "", itemType: "All", status: "All" });
+    const [filters, setFilters] = useState({ query: "", sessionId: "", itemType: "All", status: "All", date: "", member: "", ministry: "" });
     const [page, setPage] = useState(1);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -41,6 +41,15 @@ export default function SearchPage() {
             if (filtersToUse.status && filtersToUse.status !== "All") {
                 params.append("status", filtersToUse.status);
             }
+            if (filtersToUse.date) {
+                params.append("date", filtersToUse.date);
+            }
+            if (filtersToUse.member) {
+                params.append("member", filtersToUse.member.trim());
+            }
+            if (filtersToUse.ministry) {
+                params.append("ministry", filtersToUse.ministry.trim());
+            }
             const response = await fetch(`/api/records?${params.toString()}`);
             const data = await response.json().catch(() => ({}));
             if (!response.ok) {
@@ -67,13 +76,13 @@ export default function SearchPage() {
     }, []);
 
     const handleSearch = async (searchFilters) => {
-        const newFilters = { query: "", sessionId: "", itemType: "All", status: "All", ...searchFilters };
+        const newFilters = { query: "", sessionId: "", itemType: "All", status: "All", date: "", member: "", ministry: "", ...searchFilters };
         setFilters(newFilters);
         await loadRecords(newFilters, 1);
     };
 
     return (<div>
-      <PageHeader title="Submissions" description="Browse all parliamentary submissions and filter by session, item type, status, or text." actions={<Link href="/submit"><Button variant="primary">New Submission</Button></Link>}/>
+      <PageHeader title="Submissions" description="Browse submissions by session, date, member, ministry, status, type, or text." actions={<Link href="/submit"><Button variant="primary">New Submission</Button></Link>}/>
 
       <SearchBar sessions={sessions} onSearch={handleSearch} isLoading={isLoading}/>
 

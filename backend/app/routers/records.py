@@ -1,3 +1,4 @@
+from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -24,6 +25,9 @@ def list_records(
     session_id: UUID | None = Query(default=None),
     item_type: str | None = Query(default=None),
     status: str | None = Query(default=None),
+    record_date: date | None = Query(default=None, alias="date"),
+    member: str | None = Query(default=None),
+    ministry: str | None = Query(default=None),
     query_text: str | None = Query(default=None, alias="query_text"),
     limit: int = Query(default=15, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
@@ -57,6 +61,17 @@ def list_records(
             "archived": "archived",
         }
         query = query.where(func.lower(ParliamentaryRecord.status) == status_lookup.get(normalized_status, normalized_status))
+
+    if record_date:
+        query = query.where(func.date(ParliamentaryRecord.created_at) == record_date)
+
+    if member:
+        query = query.where(ParliamentaryRecord.member.ilike(f"%{member.strip()}%"))
+
+    if ministry:
+        query = query.where(
+            ParliamentaryRecord.ministry.ilike(f"%{ministry.strip()}%")
+        )
 
     if query_text:
         search_term = f"%{query_text.strip()}%"

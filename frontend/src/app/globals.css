@@ -1331,7 +1331,7 @@ video {
 
   @media (min-width: 1024px) {
     .search-bar__grid {
-      grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
     }
 
     .search-bar__button {

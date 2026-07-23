@@ -9,10 +9,21 @@ export function SearchBar({ sessions, onSearch, isLoading, }) {
     const [sessionId, setSessionId] = useState("");
     const [itemType, setItemType] = useState("All");
     const [status, setStatus] = useState("All");
+    const [date, setDate] = useState("");
+    const [member, setMember] = useState("");
+    const [ministry, setMinistry] = useState("");
     const debounceTimerRef = useRef(null);
 
     const applyFilters = () => {
-        onSearch({ query, sessionId: sessionId || undefined, itemType, status });
+        onSearch({
+            query,
+            sessionId: sessionId || undefined,
+            itemType,
+            status,
+            date,
+            member,
+            ministry,
+        });
     };
 
     useEffect(() => {
@@ -29,7 +40,7 @@ export function SearchBar({ sessions, onSearch, isLoading, }) {
                 clearTimeout(debounceTimerRef.current);
             }
         };
-    }, [query, sessionId, itemType, status]);
+    }, [query, sessionId, itemType, status, date, member, ministry]);
 
     return (<form className="search-bar" onSubmit={async (event) => {
             event.preventDefault();
@@ -58,6 +69,9 @@ export function SearchBar({ sessions, onSearch, isLoading, }) {
           <option value="Scheduled">Scheduled</option>
           <option value="Archived">Archived</option>
         </Select>
+        <Input id="searchDate" type="date" label="Submission date" value={date} onChange={(event) => setDate(event.target.value)}/>
+        <Input id="searchMember" label="Member" placeholder="Filter by member" value={member} onChange={(event) => setMember(event.target.value)}/>
+        <Input id="searchMinistry" label="Ministry" placeholder="Filter by ministry" value={ministry} onChange={(event) => setMinistry(event.target.value)}/>
         <div className="search-bar__action">
           <Button type="submit" className="search-bar__button" disabled={isLoading}>
             <SearchIcon className="search-bar__icon"/>
