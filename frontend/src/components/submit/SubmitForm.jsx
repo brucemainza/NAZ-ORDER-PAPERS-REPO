@@ -15,6 +15,7 @@ const submitSchema = z
     sessionId: z.string().min(1, "Please select a parliamentary session"),
     member: z.string().min(3, "Member of Parliament is required"),
     ministry: z.string().optional(),
+    answerType: z.enum(["Oral", "Written"]),
     subject: z.string().min(5, "Subject is required"),
     fullText: z.string().min(40, "Full text should provide enough detail for retrieval"),
 })
@@ -38,6 +39,7 @@ export function SubmitForm({ sessions }) {
             sessionId: (_b = (_a = sessions.find((session) => session.status === "Active")) === null || _a === void 0 ? void 0 : _a.id) !== null && _b !== void 0 ? _b : "",
             member: "",
             ministry: "",
+            answerType: "Oral",
             subject: "",
             fullText: "",
         },
@@ -49,6 +51,7 @@ export function SubmitForm({ sessions }) {
             sessionId: values.sessionId,
             member: values.member,
             ministry: values.type === "Question" ? values.ministry : undefined,
+            answerType: values.type === "Question" ? values.answerType : undefined,
             subject: values.subject,
             fullText: values.fullText,
         });
@@ -74,7 +77,13 @@ export function SubmitForm({ sessions }) {
 
         <Input id="member" label="Member of Parliament" placeholder="Hon. Example Member" error={(_d = errors.member) === null || _d === void 0 ? void 0 : _d.message} {...register("member")}/>
 
-        {selectedType === "Question" ? (<Input id="ministry" label="Ministry / Department" placeholder="Ministry of Health" error={(_e = errors.ministry) === null || _e === void 0 ? void 0 : _e.message} {...register("ministry")}/>) : (<div className="submit-form__motion-note">
+        {selectedType === "Question" ? (<>
+          <Select id="answerType" label="Answer Type" error={errors.answerType?.message} {...register("answerType")}>
+            <option value="Oral">Oral answer</option>
+            <option value="Written">Written answer</option>
+          </Select>
+          <Input id="ministry" label="Ministry / Department" placeholder="Ministry of Health" error={(_e = errors.ministry) === null || _e === void 0 ? void 0 : _e.message} {...register("ministry")}/>
+        </>) : (<div className="submit-form__motion-note">
             Ministry field is not required for motions.
           </div>)}
 

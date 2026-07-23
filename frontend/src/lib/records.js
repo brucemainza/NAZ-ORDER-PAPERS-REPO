@@ -29,6 +29,7 @@ export function normalizeSubmission(record) {
         sessionId: record.session_id,
         member: record.member,
         ministry: record.ministry,
+        answerType: record.answer_type,
         subject: record.subject,
         fullText: record.full_text,
         submittedBy: record.member,

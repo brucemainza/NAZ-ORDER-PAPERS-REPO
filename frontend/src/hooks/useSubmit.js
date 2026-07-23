@@ -18,6 +18,7 @@ export function useSubmit() {
                     session_id: values.sessionId,
                     member: values.member,
                     ministry: values.ministry || null,
+                    answer_type: values.answerType,
                     subject: values.subject,
                     full_text: values.fullText,
                 }),

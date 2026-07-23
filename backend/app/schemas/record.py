@@ -12,6 +12,7 @@ class RecordListOut(BaseModel):
     session_id: UUID
     member: str
     ministry: str | None
+    answer_type: str | None
     subject: str
     status: str
     created_at: datetime
@@ -25,6 +26,7 @@ class RecordListOut(BaseModel):
             'session_id': obj.session_id,
             'member': obj.member,
             'ministry': obj.ministry,
+            'answer_type': obj.answer_type,
             'subject': obj.subject,
             'status': obj.status,
             'created_at': obj.created_at,

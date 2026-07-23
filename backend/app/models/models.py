@@ -168,6 +168,7 @@ class ParliamentaryRecord(Base):
     session_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), ForeignKey("parliamentary_sessions.id"))
     member: Mapped[str] = mapped_column(Text)
     ministry: Mapped[Optional[str]] = mapped_column(Text)
+    answer_type: Mapped[Optional[str]] = mapped_column(Text)
     subject: Mapped[str] = mapped_column(Text)
     full_text: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(Text)

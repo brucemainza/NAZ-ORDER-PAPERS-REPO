@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS parliamentary_records (
   session_id uuid NOT NULL REFERENCES parliamentary_sessions(id),
   member text NOT NULL,
   ministry text,
+  answer_type text CHECK (answer_type IN ('Oral', 'Written')),
   subject text NOT NULL,
   full_text text NOT NULL,
   status text NOT NULL DEFAULT 'Historical',

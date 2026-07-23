@@ -19,6 +19,9 @@ def create_submission(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> SubmissionResponse:
+    if submission.item_type == "Question" and not user.has_permission("submit_question"):
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
     session = db.execute(
         select(ParliamentarySession).where(ParliamentarySession.id == submission.session_id)
     ).scalars().first()
@@ -32,6 +35,7 @@ def create_submission(
         session_id=submission.session_id,
         member=submission.member.strip(),
         ministry=submission.ministry.strip() if submission.ministry else None,
+        answer_type=submission.answer_type,
         subject=submission.subject.strip(),
         full_text=submission.full_text.strip(),
         status="Pending Review",

@@ -19,6 +19,7 @@ class SearchRecordOut(BaseModel):
     session_id: UUID
     member: str
     ministry: str | None
+    answer_type: str | None
     subject: str
     full_text: str
     status: str
