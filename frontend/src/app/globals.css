@@ -517,6 +517,46 @@
     background: var(--surface);
   }
 
+  .similarity-score > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.25rem;
+  }
+
+  .similarity-score__label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--muted);
+    font-size: 0.75rem;
+    line-height: 1rem;
+    font-weight: 500;
+  }
+
+  .similarity-score__value {
+    color: var(--black);
+  }
+
+  .similarity-score__track,
+  .similarity-score__fill {
+    height: 0.5rem;
+    border-radius: 0.25rem;
+  }
+
+  .similarity-score__track {
+    background: var(--bg);
+  }
+
+  .similarity-score__fill--high {
+    background: var(--success);
+  }
+
+  .similarity-score__fill--medium {
+    background: #f59e0b;
+  }
+
+  .similarity-score__fill--low {
+    background: var(--danger);
+  }
+
   .panel {
     @apply rounded-md border border-[--border] bg-[--surface] shadow-sm;
   }
