@@ -58,9 +58,9 @@ export default function AuditPage() {
 
     const content = useMemo(() => {
         if (isLoading) {
-            return (<div className="rounded-md border border-[--border] bg-white px-6 py-10 text-center shadow-sm">
-              <Spinner className="mx-auto h-6 w-6"/>
-              <p className="mt-3 text-sm text-[--muted]">Loading audit events...</p>
+            return (<div className="page-loading">
+              <Spinner className="page-loading__spinner"/>
+              <p className="page-loading__text">Loading audit events...</p>
             </div>);
         }
         if (error) {
@@ -71,11 +71,11 @@ export default function AuditPage() {
 
     return (<div>
       <PageHeader title="Audit Trail" description="Review system activity, user actions and submission history for accountability." actions={<Button variant="secondary" onClick={exportToCsv} disabled={logs.length === 0}>
-            <Download className="h-4 w-4"/>
+            <Download className="audit-page__export-icon"/>
             Export to CSV
           </Button>}/>
 
-      <div className="mb-6 grid gap-4 rounded-md border border-[--border] bg-white p-5 shadow-sm md:grid-cols-2">
+      <div className="audit-page__filters">
         <Input label="Filter by user" placeholder="e.g. Naomi" value={filters.user} onChange={(event) => setFilters((current) => ({ ...current, user: event.target.value }))}/>
         <Input label="Filter by action" placeholder="e.g. submitted" value={filters.action} onChange={(event) => setFilters((current) => ({ ...current, action: event.target.value }))}/>
       </div>
