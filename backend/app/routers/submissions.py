@@ -21,6 +21,8 @@ def create_submission(
 ) -> SubmissionResponse:
     if submission.item_type == "Question" and not user.has_permission("submit_question"):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
+    if submission.item_type == "Motion" and not user.has_permission("submit_motion"):
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
 
     session = db.execute(
         select(ParliamentarySession).where(ParliamentarySession.id == submission.session_id)

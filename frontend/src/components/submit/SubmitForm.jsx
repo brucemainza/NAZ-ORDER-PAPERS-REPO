@@ -29,13 +29,13 @@ const submitSchema = z
         });
     }
 });
-export function SubmitForm({ sessions }) {
+export function SubmitForm({ sessions, itemTypes }) {
     var _a, _b, _c, _d, _e, _f, _g;
     const { error, isSubmitting, submitSubmission } = useSubmit();
     const { register, handleSubmit, watch, formState: { errors }, } = useForm({
         resolver: zodResolver(submitSchema),
         defaultValues: {
-            type: "Question",
+            type: itemTypes[0],
             sessionId: (_b = (_a = sessions.find((session) => session.status === "Active")) === null || _a === void 0 ? void 0 : _a.id) !== null && _b !== void 0 ? _b : "",
             member: "",
             ministry: "",
@@ -61,7 +61,7 @@ export function SubmitForm({ sessions }) {
         <fieldset className="submit-form__type">
           <legend className="submit-form__legend">Item Type</legend>
           <div className="submit-form__type-options">
-            {["Question", "Motion"].map((option) => (<label key={option} className="submit-form__type-option">
+            {itemTypes.map((option) => (<label key={option} className="submit-form__type-option">
                 <input type="radio" value={option} className="submit-form__radio" {...register("type")}/>
                 <span>{option}</span>
               </label>))}
