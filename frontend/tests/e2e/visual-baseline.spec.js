@@ -32,42 +32,51 @@ test("login page desktop and mobile visual baseline", async ({ page }) => {
   await expect(page).toHaveScreenshot("login-mobile.png", { fullPage: true });
 });
 
-test("authenticated application route visual baseline", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await login(page);
-
+test.describe("authenticated application route visual baseline", () => {
   const routes = [
-    ["/dashboard", "Dashboard", "dashboard.png"],
-    ["/submit", "New Submission", "submit.png"],
-    ["/search", "Submissions", "search.png"],
-    ["/reports", "Reports", "reports.png"],
-    ["/sessions", "Parliamentary Sessions", "sessions.png"],
-    ["/users", "Users", "users.png"],
+    ["dashboard", "/dashboard", "Dashboard", "dashboard.png"],
+    ["submit", "/submit", "New Submission", "submit.png"],
+    ["search", "/search", "Submissions", "search.png"],
+    ["reports", "/reports", "Reports", "reports.png"],
+    ["sessions", "/sessions", "Parliamentary Sessions", "sessions.png"],
+    ["users", "/users", "Users", "users.png"],
   ];
 
-  for (const [route, heading, snapshot] of routes) {
-    await page.goto(route);
-    await settle(page);
-    await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
-    await expect(page).toHaveScreenshot(snapshot, { fullPage: true });
+  for (const [name, route, heading, snapshot] of routes) {
+    test(`${name} desktop`, async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await login(page);
+      await page.goto(route);
+      await settle(page);
+      await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
+      await expect(page).toHaveScreenshot(snapshot, { fullPage: true });
+    });
   }
 
-  const recordsResponse = await page.request.get("/api/records?limit=1");
-  expect(recordsResponse.ok()).toBeTruthy();
-  const records = await recordsResponse.json();
-  expect(records.length).toBeGreaterThan(0);
+  test("result detail desktop", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await login(page);
+    const recordsResponse = await page.request.get("/api/records?limit=1");
+    expect(recordsResponse.ok()).toBeTruthy();
+    const records = await recordsResponse.json();
+    expect(records.length).toBeGreaterThan(0);
 
-  await page.goto(`/results/${records[0].id}`);
-  await settle(page);
-  await expect(page.getByRole("heading", { name: "Result Record" })).toBeVisible();
-  await expect(page).toHaveScreenshot("result-detail.png", { fullPage: true });
+    await page.goto(`/results/${records[0].id}`);
+    await settle(page);
+    await expect(page.getByRole("heading", { name: "Result Record" })).toBeVisible();
+    await expect(page).toHaveScreenshot("result-detail.png", { fullPage: true });
+  });
 
-  await page.goto("/audit");
-  await settle(page);
-  await expect(page.getByRole("heading", { name: "Audit Trail" })).toBeVisible();
-  await expect(page).toHaveScreenshot("audit.png", {
-    fullPage: false,
-    mask: [page.locator("table")],
+  test("audit desktop", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await login(page);
+    await page.goto("/audit");
+    await settle(page);
+    await expect(page.getByRole("heading", { name: "Audit Trail" })).toBeVisible();
+    await expect(page).toHaveScreenshot("audit.png", {
+      fullPage: false,
+      mask: [page.locator("table")],
+    });
   });
 });
 
