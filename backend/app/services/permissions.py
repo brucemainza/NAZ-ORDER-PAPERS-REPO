@@ -37,6 +37,7 @@ DEFAULT_ROLE_PERMISSIONS = {
     "Member of Parliament": (
         "submit_question",
         "submit_motion",
+        "view_reports",
         "search_archive",
         "view_archive",
     ),

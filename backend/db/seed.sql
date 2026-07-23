@@ -36,7 +36,8 @@ JOIN permissions p ON (
     'manage_sessions', 'search_archive', 'view_archive'
   ))
   OR (r.name = 'Member of Parliament' AND p.code IN (
-    'submit_question', 'submit_motion', 'search_archive', 'view_archive'
+    'submit_question', 'submit_motion', 'view_reports',
+    'search_archive', 'view_archive'
   ))
   OR (r.name = 'Viewer' AND p.code IN (
     'view_reports', 'search_archive', 'view_archive'

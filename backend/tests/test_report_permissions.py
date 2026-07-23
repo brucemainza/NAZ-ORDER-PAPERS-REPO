@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 from app.lib.auth import create_access_token
 from app.models import Permission, Role, User, UserSession
+from app.services.permissions import seed_default_roles
 
 
 def create_user(db_session, employee_id, permissions=()):
@@ -55,3 +56,14 @@ def test_reports_endpoint_uses_view_reports_permission(client, db_session):
 
     assert denied_response.status_code == 403
     assert allowed_response.status_code == 200
+
+
+def test_default_mp_role_can_load_the_reports_backed_dashboard(db_session):
+    seed_default_roles(db_session)
+    member_role = db_session.query(Role).filter_by(
+        name="Member of Parliament"
+    ).one()
+
+    assert "view_reports" in {
+        permission.code for permission in member_role.permissions
+    }
