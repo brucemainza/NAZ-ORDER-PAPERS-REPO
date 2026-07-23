@@ -3,7 +3,7 @@ from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import add_audit_log, get_current_user, request_ip
+from app.deps import add_audit_log, request_ip, require_permission
 from app.models import ParliamentaryRecord, ParliamentarySession, ReviewDecision, User
 from app.schemas.report import ActivityReport, MatchRateReport, ReportsResponse, SessionSubmissionReport
 
@@ -14,7 +14,7 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 def reports(
     request: Request,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_permission("view_reports")),
 ) -> ReportsResponse:
     add_audit_log(
         db,
