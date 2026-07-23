@@ -803,6 +803,31 @@
     color: #fff;
   }
 
+  .dashboard-shell {
+    min-height: 100vh;
+    background: var(--bg);
+  }
+
+  .dashboard-shell__content {
+    min-width: 0;
+  }
+
+  .dashboard-shell__main {
+    padding: 1.5rem 1rem;
+  }
+
+  @media (min-width: 768px) {
+    .dashboard-shell {
+      display: grid;
+      grid-template-columns: 272px 1fr;
+    }
+
+    .dashboard-shell__main {
+      padding-right: 1.5rem;
+      padding-left: 1.5rem;
+    }
+  }
+
   .panel {
     @apply rounded-md border border-[--border] bg-[--surface] shadow-sm;
   }
