@@ -42,7 +42,7 @@ export default function DashboardPage() {
         const activeSessions = sessions.filter((session) => session.status === "Active").length;
         return [
             { label: "Total Submissions", value: String(totalSubmissions), description: "All logged submissions in the indexed archive.", icon: Files },
-            { label: "Pending Review", value: String(pendingReview), description: "Items waiting for clerk review and decision.", icon: ClipboardCheck },
+            { label: "Under Review", value: String(pendingReview), description: "Items waiting for clerk review and decision.", icon: ClipboardCheck },
             { label: "Duplicate Matches", value: String(duplicateMatches), description: "Items reviewers marked as duplicate historical matters.", icon: CheckCheck },
             { label: "Sessions Active", value: String(activeSessions), description: "Current parliamentary sessions open for drafting.", icon: Landmark },
         ];

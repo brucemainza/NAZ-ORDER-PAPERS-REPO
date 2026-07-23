@@ -21,7 +21,7 @@ export function SubmissionCard({ record }) {
           <div className="submission-card__badges">
             <Badge variant={record.item_type === "Question" ? "question" : "motion"}>{record.item_type}</Badge>
             {record.answer_type ? <Badge variant="info">{record.answer_type} answer</Badge> : null}
-            <Badge variant={record.status === "Duplicate" ? "duplicate" : record.status === "Pending Review" ? "pending" : "clear"}>{record.status}</Badge>
+            <Badge variant={record.status === "Duplicate" ? "duplicate" : ["Under Review", "Pending Review"].includes(record.status) ? "pending" : "clear"}>{record.status}</Badge>
             {record.session_name ? <Badge variant="info">{record.session_name}</Badge> : null}
           </div>
           <div>

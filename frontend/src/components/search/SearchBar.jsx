@@ -50,7 +50,7 @@ export function SearchBar({ sessions, onSearch, isLoading, }) {
         </Select>
         <Select id="searchStatus" label="Status" value={status} onChange={(event) => setStatus(event.target.value)}>
           <option value="All">All statuses</option>
-          <option value="Pending Review">Pending Review</option>
+          <option value="Under Review">Under Review</option>
           <option value="Duplicate">Duplicate</option>
           <option value="Historical">Historical</option>
           <option value="Clear">Clear</option>

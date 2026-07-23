@@ -4,6 +4,7 @@ import { formatDate } from "@/lib/utils";
 const statusVariantMap = {
     Pending: "pending",
     "Pending Review": "pending",
+    "Under Review": "pending",
     Reviewed: "reviewed",
     Duplicate: "duplicate",
     Clear: "clear",

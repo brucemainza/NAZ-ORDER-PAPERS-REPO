@@ -33,7 +33,17 @@ def reports(
             func.count(ParliamentaryRecord.id),
             func.sum(case((ParliamentaryRecord.item_type == "Question", 1), else_=0)),
             func.sum(case((ParliamentaryRecord.item_type == "Motion", 1), else_=0)),
-            func.sum(case((ParliamentaryRecord.status == "Pending Review", 1), else_=0)),
+            func.sum(
+                case(
+                    (
+                        ParliamentaryRecord.status.in_(
+                            ("Under Review", "Pending Review")
+                        ),
+                        1,
+                    ),
+                    else_=0,
+                )
+            ),
             func.sum(case((ParliamentaryRecord.status == "Duplicate", 1), else_=0)),
         )
         .join(ParliamentaryRecord, ParliamentaryRecord.session_id == ParliamentarySession.id, isouter=True)
@@ -56,7 +66,17 @@ def reports(
             ParliamentaryRecord.member,
             func.min(ParliamentaryRecord.ministry),
             func.count(ParliamentaryRecord.id),
-            func.sum(case((ParliamentaryRecord.status == "Pending Review", 1), else_=0)),
+            func.sum(
+                case(
+                    (
+                        ParliamentaryRecord.status.in_(
+                            ("Under Review", "Pending Review")
+                        ),
+                        1,
+                    ),
+                    else_=0,
+                )
+            ),
             func.sum(case((ParliamentaryRecord.status == "Duplicate", 1), else_=0)),
         )
         .group_by(ParliamentaryRecord.member)
@@ -68,7 +88,17 @@ def reports(
         select(
             func.coalesce(ParliamentaryRecord.ministry, "Motions / No department"),
             func.count(ParliamentaryRecord.id),
-            func.sum(case((ParliamentaryRecord.status == "Pending Review", 1), else_=0)),
+            func.sum(
+                case(
+                    (
+                        ParliamentaryRecord.status.in_(
+                            ("Under Review", "Pending Review")
+                        ),
+                        1,
+                    ),
+                    else_=0,
+                )
+            ),
             func.sum(case((ParliamentaryRecord.status == "Duplicate", 1), else_=0)),
         )
         .group_by(ParliamentaryRecord.ministry)

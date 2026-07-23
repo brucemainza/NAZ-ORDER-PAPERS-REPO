@@ -41,8 +41,9 @@ def list_records(
     if status:
         normalized_status = status.strip().lower()
         status_lookup = {
-            "pending": "pending review",
-            "pending review": "pending review",
+            "pending": "under review",
+            "pending review": "under review",
+            "under review": "under review",
             "duplicate": "duplicate",
             "historical": "historical",
             "clear": "clear (new)",

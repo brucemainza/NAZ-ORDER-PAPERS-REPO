@@ -3,13 +3,35 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import add_audit_log, get_current_user, request_ip
+from app.deps import add_audit_log, get_current_user, request_ip, require_permission
 from app.models import ParliamentaryRecord, ParliamentarySession, User
 from app.schemas.search import SearchResultOut
-from app.schemas.submission import SubmissionCreate, SubmissionResponse
+from app.schemas.submission import (
+    SubmissionCreate,
+    SubmissionRecordOut,
+    SubmissionResponse,
+)
 from app.services.similarity import find_previously_addressed_candidates
 
 router = APIRouter(prefix="/submissions", tags=["submissions"])
+
+
+@router.get("/review-queue", response_model=list[SubmissionRecordOut])
+def review_queue(
+    db: Session = Depends(get_db),
+    reviewer: User = Depends(require_permission("review_submission")),
+) -> list[ParliamentaryRecord]:
+    return list(
+        db.scalars(
+            select(ParliamentaryRecord)
+            .where(
+                ParliamentaryRecord.status.in_(
+                    ("Under Review", "Pending Review")
+                )
+            )
+            .order_by(ParliamentaryRecord.created_at.asc())
+        ).all()
+    )
 
 
 @router.post("", response_model=SubmissionResponse, status_code=201)
@@ -40,7 +62,7 @@ def create_submission(
         answer_type=submission.answer_type,
         subject=submission.subject.strip(),
         full_text=submission.full_text.strip(),
-        status="Pending Review",
+        status="Under Review",
     )
     db.add(record)
     db.flush()

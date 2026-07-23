@@ -55,7 +55,7 @@ export default function ReportsPage() {
         { key: "total", header: "Total", render: (row) => row.total },
         { key: "questions", header: "Questions", render: (row) => row.questions },
         { key: "motions", header: "Motions", render: (row) => row.motions },
-        { key: "pending", header: "Pending", render: (row) => row.pending_review },
+        { key: "pending", header: "Under Review", render: (row) => row.pending_review },
         { key: "duplicates", header: "Duplicates", render: (row) => row.duplicates },
     ];
     const matchColumns = [
@@ -68,7 +68,7 @@ export default function ReportsPage() {
         { key: "name", header: "Name", render: (row) => row.name },
         { key: "dept", header: "Department", render: (row) => row.department || "n/a" },
         { key: "submissions", header: "Submissions", render: (row) => row.submissions },
-        { key: "pending", header: "Pending", render: (row) => row.pending_review },
+        { key: "pending", header: "Under Review", render: (row) => row.pending_review },
         { key: "duplicates", header: "Duplicates", render: (row) => row.duplicates },
     ];
 
@@ -77,7 +77,7 @@ export default function ReportsPage() {
 
       <div className="reports-page__summary">
         <Card className="reports-page__summary-card"><p className="reports-page__summary-label">Total submissions</p><p className="reports-page__summary-value">{totals.submissions}</p></Card>
-        <Card className="reports-page__summary-card"><p className="reports-page__summary-label">Pending review</p><p className="reports-page__summary-value">{totals.pending}</p></Card>
+        <Card className="reports-page__summary-card"><p className="reports-page__summary-label">Under review</p><p className="reports-page__summary-value">{totals.pending}</p></Card>
         <Card className="reports-page__summary-card"><p className="reports-page__summary-label">Duplicates</p><p className="reports-page__summary-value">{totals.duplicates}</p></Card>
       </div>
 
