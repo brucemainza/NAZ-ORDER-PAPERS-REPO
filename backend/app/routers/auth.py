@@ -16,6 +16,19 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 security = HTTPBearer(auto_error=False)
 
 
+def user_out(user: User) -> UserOut:
+    return UserOut(
+        id=str(user.id),
+        employeeId=user.employee_id,
+        name=user.name,
+        role=user.primary_role_name,
+        roles=user.role_names,
+        permissions=user.permission_codes,
+        status=user.status,
+        lastLogin=user.last_login_at.isoformat() if user.last_login_at else None,
+    )
+
+
 @router.post("/login", response_model=LoginResponse)
 def login(request: LoginRequest, req: Request, db: Session = Depends(get_db)):
     employee_id = request.employee_id.strip().upper()
@@ -38,7 +51,9 @@ def login(request: LoginRequest, req: Request, db: Session = Depends(get_db)):
         "sub": str(user.id),
         "employeeId": user.employee_id,
         "name": user.name,
-        "role": user.role,
+        "role": user.primary_role_name,
+        "roles": user.role_names,
+        "permissions": user.permission_codes,
         "status": user.status,
     })
 
@@ -67,14 +82,7 @@ def login(request: LoginRequest, req: Request, db: Session = Depends(get_db)):
 
     return LoginResponse(
         token=token,
-        user=UserOut(
-            id=str(user.id),
-            employeeId=user.employee_id,
-            name=user.name,
-            role=user.role,
-            status=user.status,
-            lastLogin=user.last_login_at.isoformat() if user.last_login_at else None,
-        ),
+        user=user_out(user),
     )
 
 
@@ -110,14 +118,7 @@ def me(credentials: HTTPAuthorizationCredentials = Depends(security), db: Sessio
     if user.status != "Active":
         raise HTTPException(status_code=401, detail="Account inactive")
 
-    return UserOut(
-        id=str(user.id),
-        employeeId=user.employee_id,
-        name=user.name,
-        role=user.role,
-        status=user.status,
-        lastLogin=user.last_login_at.isoformat() if user.last_login_at else None,
-    )
+    return user_out(user)
 
 
 @router.post("/logout")

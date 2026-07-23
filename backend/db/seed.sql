@@ -1,3 +1,49 @@
+-- Configurable permissions and roles
+INSERT INTO permissions (code, description)
+VALUES
+  ('submit_question', 'Submit questions for oral or written answer'),
+  ('submit_motion', 'Submit notices of motion'),
+  ('review_submission', 'Review submitted questions and motions'),
+  ('approve_motion', 'Approve a submission after review'),
+  ('reject_submission', 'Reject a submission after review'),
+  ('request_changes', 'Return a submission to its owner for changes'),
+  ('schedule_item', 'Schedule an approved item for a sitting'),
+  ('view_reports', 'View operational reports'),
+  ('view_audit', 'View the system audit trail'),
+  ('manage_users', 'Manage user accounts and account locks'),
+  ('manage_roles', 'Manage roles and permission assignments'),
+  ('manage_sessions', 'Manage parliamentary sessions'),
+  ('search_archive', 'Search archived parliamentary records'),
+  ('view_archive', 'View archived parliamentary records')
+ON CONFLICT (code) DO UPDATE SET description = EXCLUDED.description;
+
+INSERT INTO roles (name, description)
+VALUES
+  ('Administrator', 'Full system administration'),
+  ('Clerk', 'Submission review and parliamentary scheduling'),
+  ('Member of Parliament', 'Question and motion submission'),
+  ('Viewer', 'Read-only reporting and archive access')
+ON CONFLICT (name) DO UPDATE SET description = EXCLUDED.description;
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+JOIN permissions p ON (
+  r.name = 'Administrator'
+  OR (r.name = 'Clerk' AND p.code IN (
+    'review_submission', 'approve_motion', 'reject_submission',
+    'request_changes', 'schedule_item', 'view_reports', 'view_audit',
+    'manage_sessions', 'search_archive', 'view_archive'
+  ))
+  OR (r.name = 'Member of Parliament' AND p.code IN (
+    'submit_question', 'submit_motion', 'search_archive', 'view_archive'
+  ))
+  OR (r.name = 'Viewer' AND p.code IN (
+    'view_reports', 'search_archive', 'view_archive'
+  ))
+)
+ON CONFLICT DO NOTHING;
+
 -- Users
 INSERT INTO users (employee_id, name, role, status, password_hash)
 VALUES
@@ -7,6 +53,18 @@ VALUES
   ('EMP-004', 'Brian Musonda', 'Clerk', 'Active', '$2b$12$PkG3pUy6HoFHjU3OosNV/On2RKoKx7ZLNnWyvX7A5WgIWR3ydwCBq'),
   ('EMP-005', 'Mercy Siame', 'Clerk', 'Inactive', '$2b$12$PkG3pUy6HoFHjU3OosNV/On2RKoKx7ZLNnWyvX7A5WgIWR3ydwCBq')
 ON CONFLICT (employee_id) DO NOTHING;
+
+INSERT INTO user_roles (user_id, role_id)
+SELECT u.id, r.id
+FROM users u
+JOIN roles r ON r.name = CASE
+  WHEN u.role = 'Admin' THEN 'Administrator'
+  WHEN u.role IN ('Senior Clerk', 'Clerk') THEN 'Clerk'
+END
+WHERE NOT EXISTS (
+  SELECT 1 FROM user_roles ur WHERE ur.user_id = u.id
+)
+ON CONFLICT DO NOTHING;
 
 -- Parliamentary Sessions
 INSERT INTO parliamentary_sessions (code, name, start_date, end_date, status)

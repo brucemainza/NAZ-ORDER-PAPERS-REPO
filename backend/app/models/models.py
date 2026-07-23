@@ -2,11 +2,85 @@ from datetime import date, datetime
 from typing import List, Optional
 from uuid import UUID, uuid4
 
-from sqlalchemy import Date, DateTime, ForeignKey, Text, func
+from sqlalchemy import Column, Date, DateTime, ForeignKey, Table, Text, func
 from sqlalchemy.dialects.postgresql import ARRAY, UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+
+
+role_permissions = Table(
+    "role_permissions",
+    Base.metadata,
+    Column(
+        "role_id",
+        PostgresUUID(as_uuid=True),
+        ForeignKey("roles.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column(
+        "permission_id",
+        PostgresUUID(as_uuid=True),
+        ForeignKey("permissions.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+)
+
+user_roles = Table(
+    "user_roles",
+    Base.metadata,
+    Column(
+        "user_id",
+        PostgresUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column(
+        "role_id",
+        PostgresUUID(as_uuid=True),
+        ForeignKey("roles.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+)
+
+
+class Permission(Base):
+    __tablename__ = "permissions"
+
+    id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+    code: Mapped[str] = mapped_column(Text, unique=True)
+    description: Mapped[str] = mapped_column(Text)
+
+    roles: Mapped[List["Role"]] = relationship(
+        secondary=role_permissions,
+        back_populates="permissions",
+    )
+
+
+class Role(Base):
+    __tablename__ = "roles"
+
+    id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+    name: Mapped[str] = mapped_column(Text, unique=True)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+
+    permissions: Mapped[List[Permission]] = relationship(
+        secondary=role_permissions,
+        back_populates="roles",
+        lazy="selectin",
+    )
+    users: Mapped[List["User"]] = relationship(
+        secondary=user_roles,
+        back_populates="roles",
+    )
 
 
 class User(Base):
@@ -22,6 +96,32 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     
     sessions: Mapped[List["UserSession"]] = relationship(back_populates="user")
+    roles: Mapped[List[Role]] = relationship(
+        secondary=user_roles,
+        back_populates="users",
+        lazy="selectin",
+    )
+
+    @property
+    def permission_codes(self) -> list[str]:
+        return sorted(
+            {
+                permission.code
+                for assigned_role in self.roles
+                for permission in assigned_role.permissions
+            }
+        )
+
+    @property
+    def role_names(self) -> list[str]:
+        return sorted(assigned_role.name for assigned_role in self.roles)
+
+    @property
+    def primary_role_name(self) -> str:
+        return self.role_names[0] if self.roles else self.role
+
+    def has_permission(self, permission_code: str) -> bool:
+        return permission_code in self.permission_codes
 
 
 class UserSession(Base):

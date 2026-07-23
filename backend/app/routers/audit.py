@@ -5,7 +5,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import add_audit_log, request_ip, require_roles
+from app.deps import add_audit_log, request_ip, require_permission
 from app.models import AuditLog, User
 from app.schemas.audit import AuditLogOut
 
@@ -20,7 +20,7 @@ def list_audit_logs(
     entity_id: str | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=500),
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles("Admin", "Senior Clerk")),
+    user: User = Depends(require_permission("view_audit")),
 ) -> list[AuditLogOut]:
     query = select(AuditLog, User.name).outerjoin(User, AuditLog.user_id == User.id)
 

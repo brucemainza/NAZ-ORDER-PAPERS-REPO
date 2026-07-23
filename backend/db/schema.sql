@@ -1,15 +1,39 @@
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+CREATE TABLE IF NOT EXISTS permissions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  code text UNIQUE NOT NULL,
+  description text NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS roles (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text UNIQUE NOT NULL,
+  description text
+);
+
+CREATE TABLE IF NOT EXISTS role_permissions (
+  role_id uuid NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+  permission_id uuid NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
+  PRIMARY KEY (role_id, permission_id)
+);
+
 CREATE TABLE IF NOT EXISTS users (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   employee_id text UNIQUE NOT NULL,
   name text NOT NULL,
-  role text NOT NULL CHECK (role IN ('Admin', 'Senior Clerk', 'Clerk')),
+  role text NOT NULL,
   status text NOT NULL CHECK (status IN ('Active', 'Inactive')),
   password_hash text,
   last_login_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS user_roles (
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role_id uuid NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+  PRIMARY KEY (user_id, role_id)
 );
 
 CREATE TABLE IF NOT EXISTS parliamentary_sessions (
