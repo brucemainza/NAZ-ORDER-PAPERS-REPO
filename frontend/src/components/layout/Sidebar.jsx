@@ -4,23 +4,25 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/hooks/useAuth";
+import { hasPermission } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 const navItems = [
-    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, adminOnly: false },
-    { href: "/submit", label: "Submit", icon: FilePlus, adminOnly: false },
-    { href: "/search", label: "Submissions", icon: File, adminOnly: false },
-    { href: "/sessions", label: "Sessions", icon: Calendar, adminOnly: true },
-    { href: "/users", label: "Users", icon: Users, adminOnly: true },
-    { href: "/audit", label: "Audit Log", icon: ClipboardList, adminOnly: true },
-    { href: "/reports", label: "Reports", icon: BarChart2, adminOnly: false },
+    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/submit", label: "Submit", icon: FilePlus, permissions: ["submit_question", "submit_motion"] },
+    { href: "/search", label: "Submissions", icon: File },
+    { href: "/sessions", label: "Sessions", icon: Calendar, permissions: ["manage_sessions"] },
+    { href: "/users", label: "Users", icon: Users, permissions: ["manage_users"] },
+    { href: "/audit", label: "Audit Log", icon: ClipboardList, permissions: ["view_audit"] },
+    { href: "/reports", label: "Reports", icon: BarChart2, permissions: ["view_reports"] },
 ];
 export function Sidebar() {
     var _a, _b;
     const pathname = usePathname();
     const router = useRouter();
     const { user, logout } = useAuth();
-    const isAdmin = (user === null || user === void 0 ? void 0 : user.role) === "Admin";
-    const visibleItems = navItems.filter((item) => (item.adminOnly ? isAdmin : true));
+    const visibleItems = navItems.filter(
+        (item) => !item.permissions || item.permissions.some((permission) => hasPermission(user, permission)),
+    );
     return (<aside className="sidebar">
       <div className="sidebar__brand">
         <div className="sidebar__mark">
