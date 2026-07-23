@@ -205,6 +205,33 @@ class ReviewDecision(Base):
     reviewer: Mapped["User"] = relationship()
 
 
+class WorkflowDecision(Base):
+    __tablename__ = "workflow_decisions"
+
+    id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+    record_id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("parliamentary_records.id"),
+    )
+    action: Mapped[str] = mapped_column(Text)
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+    reviewer_id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("users.id"),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    record: Mapped["ParliamentaryRecord"] = relationship()
+    reviewer: Mapped["User"] = relationship()
+
+
 class AuditLog(Base):
     __tablename__ = "audit_logs"
 

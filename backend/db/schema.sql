@@ -82,6 +82,15 @@ CREATE TABLE IF NOT EXISTS review_decisions (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS workflow_decisions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  record_id uuid NOT NULL REFERENCES parliamentary_records(id),
+  action text NOT NULL CHECK (action IN ('Approve', 'Reject', 'Request Changes')),
+  notes text,
+  reviewer_id uuid NOT NULL REFERENCES users(id),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS audit_logs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid REFERENCES users(id),

@@ -14,6 +14,7 @@ from app.routers import (
     sessions,
     submissions,
     users,
+    workflow_reviews,
 )
 
 settings = get_settings()
@@ -42,6 +43,7 @@ app.include_router(audit.router)
 app.include_router(reports.router)
 app.include_router(auth.router)
 app.include_router(users.router)
+app.include_router(workflow_reviews.router)
 
 
 @app.on_event("startup")

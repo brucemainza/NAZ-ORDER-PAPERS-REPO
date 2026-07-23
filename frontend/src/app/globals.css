@@ -1886,6 +1886,19 @@ video {
     margin-top: 1rem;
   }
 
+  .result-detail__workflow-actions {
+    display: grid;
+    gap: 0.625rem;
+    margin-top: 1rem;
+  }
+
+  .result-detail__workflow-unavailable {
+    margin-top: 1rem;
+    color: var(--muted);
+    font-size: 0.875rem;
+    line-height: 1.4;
+  }
+
   .result-detail__related-label {
     display: block;
     margin-bottom: 0.5rem;

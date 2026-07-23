@@ -8,3 +8,4 @@ from . import search
 from . import sessions
 from . import submissions
 from . import users
+from . import workflow_reviews

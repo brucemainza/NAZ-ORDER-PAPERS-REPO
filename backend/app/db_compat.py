@@ -34,6 +34,16 @@ def ensure_runtime_schema() -> None:
             PRIMARY KEY (user_id, role_id)
         )
         """,
+        """
+        CREATE TABLE IF NOT EXISTS workflow_decisions (
+            id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            record_id uuid NOT NULL REFERENCES parliamentary_records(id),
+            action text NOT NULL,
+            notes text,
+            reviewer_id uuid NOT NULL REFERENCES users(id),
+            created_at timestamptz NOT NULL DEFAULT now()
+        )
+        """,
         "ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_login_attempts integer NOT NULL DEFAULT 0",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_at timestamptz",

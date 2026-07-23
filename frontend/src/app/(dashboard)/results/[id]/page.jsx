@@ -11,11 +11,14 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Spinner } from "@/components/ui/Spinner";
 import { Textarea } from "@/components/ui/Textarea";
 import { Toast } from "@/components/ui/Toast";
+import { useAuthContext } from "@/context/AuthContext";
+import { hasPermission } from "@/lib/auth";
 import { normalizeSearchResult, normalizeSubmission } from "@/lib/records";
 import { formatDate, formatDateTime } from "@/lib/utils";
 
 export default function ResultDetailPage() {
     const params = useParams();
+    const { user } = useAuthContext();
     const [submission, setSubmission] = useState(null);
     const [matches, setMatches] = useState([]);
     const [sessions, setSessions] = useState([]);
@@ -27,6 +30,10 @@ export default function ResultDetailPage() {
     const [error, setError] = useState(null);
     const [savedDecision, setSavedDecision] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [workflowNotes, setWorkflowNotes] = useState("");
+    const [workflowResult, setWorkflowResult] = useState(null);
+    const [workflowError, setWorkflowError] = useState(null);
+    const [isWorkflowSaving, setIsWorkflowSaving] = useState(false);
 
     const loadRecord = async () => {
         setIsLoading(true);
@@ -65,6 +72,12 @@ export default function ResultDetailPage() {
     }, [params.id]);
 
     const selectedMatch = useMemo(() => matches.find((item) => item.match.id === selectedMatchId), [matches, selectedMatchId]);
+    const workflowActions = [
+        ...(hasPermission(user, "approve_motion") ? [{ action: "Approve", variant: "primary" }] : []),
+        ...(hasPermission(user, "reject_submission") ? [{ action: "Reject", variant: "danger" }] : []),
+        ...(hasPermission(user, "request_changes") ? [{ action: "Request Changes", variant: "secondary" }] : []),
+    ];
+    const isWorkflowReviewable = ["Under Review", "Pending Review"].includes(submission?.status);
 
     const recordDecision = async () => {
         setIsSaving(true);
@@ -84,13 +97,36 @@ export default function ResultDetailPage() {
                 throw new Error(data.message || "Could not record decision");
             }
             setHistory((current) => [data, ...current]);
-            setSubmission((current) => current ? { ...current, status: data.decision } : current);
             setNotes("");
             setSavedDecision(true);
         } catch (err) {
             setError(err.message || "Could not record decision");
         } finally {
             setIsSaving(false);
+        }
+    };
+
+    const recordWorkflowAction = async (action) => {
+        setIsWorkflowSaving(true);
+        setWorkflowError(null);
+        setWorkflowResult(null);
+        try {
+            const response = await fetch(`/api/submissions/${params.id}/workflow-review`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action, notes: workflowNotes || null }),
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.message || "Could not record workflow action");
+            }
+            setSubmission((current) => current ? { ...current, status: data.status } : current);
+            setWorkflowNotes("");
+            setWorkflowResult(data);
+        } catch (err) {
+            setWorkflowError(err.message || "Could not record workflow action");
+        } finally {
+            setIsWorkflowSaving(false);
         }
     };
 
@@ -148,7 +184,7 @@ export default function ResultDetailPage() {
           <section className="result-detail__section">
             <div>
               <h2 className="result-detail__section-title">Review History</h2>
-              <p className="result-detail__section-description">Recorded decisions for this record.</p>
+              <p className="result-detail__section-description">Recorded similarity classifications for this record.</p>
             </div>
 
             <Card className="result-detail__history">
@@ -166,9 +202,34 @@ export default function ResultDetailPage() {
         </div>
 
         <div className="result-detail__aside">
-          <Card className="result-detail__panel">
-            <h2 className="result-detail__panel-title">Clerk Decision Panel</h2>
-            <p className="result-detail__panel-description">Record the review outcome and connect it to the closest historical record when relevant.</p>
+          {workflowActions.length > 0 ? (<Card className="result-detail__panel">
+            <h2 className="result-detail__panel-title">Workflow Decision</h2>
+            <p className="result-detail__panel-description">Approve, reject, or return this submission to Draft for changes.</p>
+
+            {isWorkflowReviewable ? (<>
+              <div className="result-detail__panel-field">
+                <Textarea label="Workflow Notes" value={workflowNotes} onChange={(event) => setWorkflowNotes(event.target.value)} placeholder="Add guidance or reasons for this workflow decision."/>
+              </div>
+              <div className="result-detail__workflow-actions">
+                {workflowActions.map(({ action, variant }) => (
+                  <Button key={action} variant={variant} fullWidth onClick={() => recordWorkflowAction(action)} disabled={isWorkflowSaving}>
+                    {isWorkflowSaving ? "Saving..." : action}
+                  </Button>
+                ))}
+              </div>
+            </>) : (<p className="result-detail__workflow-unavailable">Workflow actions are unavailable while this item is {submission.status}.</p>)}
+
+            {workflowResult ? (<div className="result-detail__panel-field">
+              <Toast variant="success" title={`${workflowResult.action} recorded`} description={`The submission is now ${workflowResult.status}.`}/>
+            </div>) : null}
+            {workflowError ? (<div className="result-detail__panel-field">
+              <Toast variant="error" title="Workflow error" description={workflowError}/>
+            </div>) : null}
+          </Card>) : null}
+
+          {hasPermission(user, "review_submission") ? (<Card className="result-detail__panel">
+            <h2 className="result-detail__panel-title">Similarity Classification</h2>
+            <p className="result-detail__panel-description">Classify historical similarity without changing the submission workflow status.</p>
 
             <fieldset className="result-detail__decisions">
               <legend className="result-detail__legend">Decision</legend>
@@ -205,7 +266,7 @@ export default function ResultDetailPage() {
                 {isSaving ? "Saving..." : "Record Decision"}
               </Button>
             </div>
-          </Card>
+          </Card>) : null}
         </div>
       </div>
     </div>);

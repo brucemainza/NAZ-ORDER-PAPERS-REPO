@@ -8,6 +8,7 @@ from .models import (
     SearchLog,
     User,
     UserSession,
+    WorkflowDecision,
     role_permissions,
     user_roles,
 )
