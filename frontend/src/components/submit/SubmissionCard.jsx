@@ -33,6 +33,7 @@ export function SubmissionCard({ record }) {
             {record.answer_type ? <Badge variant="info">{record.answer_type} answer</Badge> : null}
             <Badge variant={statusVariantMap[record.status] || "info"}>{record.status}</Badge>
             {record.session_name ? <Badge variant="info">{record.session_name}</Badge> : null}
+            {typeof record.search_score === "number" ? <Badge variant="clear">{record.search_score}% relevance</Badge> : null}
           </div>
           <div>
             <h3 className="submission-card__title">{record.subject}</h3>
@@ -42,6 +43,11 @@ export function SubmissionCard({ record }) {
           </div>
           {fullText && (
             <>
+              {record.matched_terms?.length ? (
+                <p className="submission-card__match">
+                  Matched content: {record.matched_terms.join(", ")}
+                </p>
+              ) : null}
               <p className={isExpanded ? "submission-card__text" : "submission-card__text submission-card__text--collapsed"}>
                 {displayText}
               </p>

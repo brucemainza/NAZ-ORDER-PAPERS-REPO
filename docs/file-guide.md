@@ -80,7 +80,7 @@ local `.env` files are intentionally not tracked and are not application source.
 | `backend/app/routers/scheduling.py` | Schedules approved records for a sitting date with state validation and audit. |
 | `backend/app/routers/order_papers.py` | Generates deterministic sitting-date Order Paper JSON grouped into Questions and Notices of Motion. |
 | `backend/app/routers/records.py` | Lists, filters, paginates, retrieves, and similarity-checks records while enforcing draft/archive visibility. |
-| `backend/app/routers/search.py` | Runs permission-aware BM25 keyword search and records search/audit logs. |
+| `backend/app/routers/search.py` | Applies visibility and browse filters before BM25 ranking, paginates ranked matches, and records search/audit logs. |
 | `backend/app/routers/reviews.py` | Lists and records similarity/duplicate decisions separately from workflow status. |
 | `backend/app/routers/reports.py` | Produces permission-protected session, match-rate, member, and department aggregates. |
 | `backend/app/routers/audit.py` | Returns permission-protected, filterable audit history and audits audit-trail access. |
@@ -94,7 +94,7 @@ local `.env` files are intentionally not tracked and are not application source.
 | `backend/app/schemas/session.py` | Parliamentary session output contract. |
 | `backend/app/schemas/submission.py` | Create/edit/schedule validation plus record and similarity-bearing submission responses. |
 | `backend/app/schemas/record.py` | Record list/detail serialization including session name and sitting date. |
-| `backend/app/schemas/search.py` | BM25 request, record, ranked result, and response contracts. |
+| `backend/app/schemas/search.py` | BM25 filter/pagination request plus record, ranked result, and result-count response contracts. |
 | `backend/app/schemas/review.py` | Similarity decision and workflow-review request/response validation. |
 | `backend/app/schemas/order_paper.py` | Order Paper document and section response contracts. |
 | `backend/app/schemas/report.py` | Session, match-rate, activity, and complete report response contracts. |
@@ -140,7 +140,7 @@ local `.env` files are intentionally not tracked and are not application source.
 | `backend/tests/test_order_papers.py` | Verifies exact sitting membership, fixed grouping, deterministic order, and empty documents. |
 | `backend/tests/test_auto_archiving.py` | Covers ended/closed session archival, active-session preservation, idempotency, and startup triggering. |
 | `backend/tests/test_archive_access.py` | Verifies independent `view_archive` and `search_archive` behavior using custom roles. |
-| `backend/tests/test_keyword_search.py` | Proves subject/full-text keyword matches and clear non-match exclusion. |
+| `backend/tests/test_keyword_search.py` | Proves subject/full-text matches, non-match exclusion, pre-ranking filters, full-text responses, and ranked pagination. |
 | `backend/tests/test_record_filters.py` | Covers each required filter, combined filters, and contradictory empty results. |
 | `backend/tests/test_csv_ingestion.py` | Verifies CSV lifecycle-status normalization. |
 
@@ -176,7 +176,7 @@ local `.env` files are intentionally not tracked and are not application source.
 | `frontend/src/app/(dashboard)/layout.jsx` | Server-validates the backend session and composes protected Sidebar/Topbar/main layout. |
 | `frontend/src/app/(dashboard)/dashboard/page.jsx` | Loads reports, records, sessions, aggregate cards, and recent activity. |
 | `frontend/src/app/(dashboard)/submit/page.jsx` | Loads sessions, derives permitted item types, and renders the submission form or access states. |
-| `frontend/src/app/(dashboard)/search/page.jsx` | Paginates and filters record browsing by text/session/date/member/ministry/status/type. |
+| `frontend/src/app/(dashboard)/search/page.jsx` | Uses BM25 for keywords of at least three characters and SQL browsing for blank/short queries, forwarding every filter and ranked-page offset. |
 | `frontend/src/app/(dashboard)/results/[id]/page.jsx` | Loads record/similarity/history and provides similarity decisions, workflow actions, draft recovery, and scheduling controls. |
 | `frontend/src/app/(dashboard)/reports/page.jsx` | Renders summary cards and session/match/member/department report tables. |
 | `frontend/src/app/(dashboard)/audit/page.jsx` | Filters audit data and provides browser-generated CSV export. |
@@ -246,7 +246,7 @@ local `.env` files are intentionally not tracked and are not application source.
 | `frontend/src/components/dashboard/StatCard.jsx` | Dashboard metric card. |
 | `frontend/src/components/dashboard/RecentActivity.jsx` | Recent record table/cards with lifecycle badges and session labels. |
 | `frontend/src/components/submit/SubmitForm.jsx` | Permission-constrained type choices, conditional question fields, Zod validation, and submission hook integration. |
-| `frontend/src/components/submit/SubmissionCard.jsx` | Browse-list card with type/status/session metadata and detail navigation. |
+| `frontend/src/components/submit/SubmissionCard.jsx` | Browse/search card with metadata, BM25 relevance and matched terms, expandable full text, and detail navigation. |
 | `frontend/src/components/search/SearchBar.jsx` | Debounced text/session/date/member/ministry/status/type filter form. |
 | `frontend/src/components/search/ResultCard.jsx` | Ranked similarity result, score, metadata, and expandable text. |
 | `frontend/src/components/shared/SessionBadge.jsx` | Session-label badge wrapper. |
@@ -280,7 +280,7 @@ local `.env` files are intentionally not tracked and are not application source.
 
 | File | Responsibility |
 | --- | --- |
-| `frontend/tests/e2e/visual-baseline.spec.js` | Authenticated route smoke tests and exact desktop/mobile screenshots using seeded login data. |
+| `frontend/tests/e2e/visual-baseline.spec.js` | Authenticated route screenshots plus a browser proof that content-only keywords return and explain BM25 matches. |
 | `frontend/tests/e2e/visual-baseline.spec.js-snapshots/login-desktop-linux.png` | Approved desktop login rendering. |
 | `frontend/tests/e2e/visual-baseline.spec.js-snapshots/login-mobile-linux.png` | Approved mobile login rendering. |
 | `frontend/tests/e2e/visual-baseline.spec.js-snapshots/dashboard-linux.png` | Approved desktop dashboard rendering. |
@@ -297,6 +297,7 @@ local `.env` files are intentionally not tracked and are not application source.
 
 | File | Responsibility |
 | --- | --- |
+| `frontend/tests/source/bm25-search-page.test.cjs` | Guards the Submissions page's BM25 request path and visible full-content match context. |
 | `frontend/tests/source/no-tailwind.test.cjs` | Proves Tailwind dependencies/config/directives/classes are absent. |
 | `frontend/tests/source/no-role-authorization.test.cjs` | Guards against role-name authorization logic in frontend source. |
 | `frontend/tests/source/submission-permissions.test.cjs` | Verifies submission types derive from permission checks. |

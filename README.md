@@ -27,7 +27,7 @@ retrieval platform for the National Assembly of Zambia.
 - Structured Order Paper generation from scheduled items.
 - Automatic startup archival after session end.
 - Permission-controlled archive list/detail/search.
-- BM25 keyword search and multi-dimensional record filters.
+- BM25 full-content keyword search with relevance context and multi-dimensional filters.
 - Reports, audit trail, and audit CSV export.
 - Plain CSS UI with desktop/mobile Playwright visual baselines.
 

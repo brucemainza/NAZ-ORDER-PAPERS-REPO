@@ -25,12 +25,54 @@ export default function SearchPage() {
         setIsLoading(true);
         setError(null);
         try {
-            const params = new URLSearchParams();
             const offset = (nextPage - 1) * PAGE_SIZE;
+            const keywordQuery = filtersToUse.query?.trim() || "";
+
+            if (keywordQuery.length >= 3) {
+                const response = await fetch("/api/search", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        query_text: keywordQuery,
+                        session_id: filtersToUse.sessionId || null,
+                        item_type: filtersToUse.itemType && filtersToUse.itemType !== "All"
+                            ? filtersToUse.itemType
+                            : null,
+                        status: filtersToUse.status && filtersToUse.status !== "All"
+                            ? filtersToUse.status
+                            : null,
+                        date: filtersToUse.date || null,
+                        member: filtersToUse.member?.trim() || null,
+                        ministry: filtersToUse.ministry?.trim() || null,
+                        limit: PAGE_SIZE,
+                        offset,
+                    }),
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw new Error(data.message || "Could not search submissions");
+                }
+                const rankedRecords = Array.isArray(data.results)
+                    ? data.results.map((result) => ({
+                        ...result.record,
+                        search_rank: result.rank,
+                        search_score: result.score,
+                        matched_terms: result.matched_terms || [],
+                    }))
+                    : [];
+                setHasMore(
+                    Number(data.total_results || 0) > offset + rankedRecords.length,
+                );
+                setRecords(rankedRecords);
+                setPage(nextPage);
+                return;
+            }
+
+            const params = new URLSearchParams();
             params.append("limit", String(PAGE_SIZE + 1));
             params.append("offset", String(offset));
-            if (filtersToUse.query) {
-                params.append("query_text", filtersToUse.query.trim());
+            if (keywordQuery) {
+                params.append("query_text", keywordQuery);
             }
             if (filtersToUse.sessionId) {
                 params.append("session_id", filtersToUse.sessionId);
@@ -89,11 +131,11 @@ export default function SearchPage() {
       <section className="search-page__results">
         {isLoading ? (<div className="page-loading">
             <Spinner className="page-loading__spinner"/>
-            <p className="page-loading__text">Loading submissions...</p>
+            <p className="page-loading__text">{filters.query?.trim().length >= 3 ? "Ranking matching content..." : "Loading submissions..."}</p>
           </div>) : error ? (<EmptyState title="Unable to load submissions" description={error}/>) : records.length === 0 ? (<EmptyState title="No submissions found" description="Try changing the filters or use the form above to explore current parliamentary submissions."/>) : (<div className="search-page__list">
             {records.map((record) => {
               const sessionName = sessions.find(s => s.id === record.session_id)?.name || record.session_id;
-              return <SubmissionCard key={record.id} record={{...record, sessionName}} />
+              return <SubmissionCard key={record.id} record={{...record, session_name: sessionName}} />
             })}
             <div className="search-page__pagination">
               <p className="search-page__pagination-text">Showing page {page}. {hasMore ? "More submissions are available." : "End of submissions."}</p>

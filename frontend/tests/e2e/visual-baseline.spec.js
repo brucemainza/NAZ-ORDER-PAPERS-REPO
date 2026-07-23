@@ -89,3 +89,26 @@ test("dashboard mobile visual baseline", async ({ page }) => {
   await settle(page);
   await expect(page).toHaveScreenshot("dashboard-mobile.png", { fullPage: true });
 });
+
+test("keyword search displays matches from full record content", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await login(page);
+  await page.goto("/search");
+  await settle(page);
+
+  const searchResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/search")
+      && response.request().method() === "POST",
+  );
+  await page.getByLabel("Search text").fill("qualified");
+  expect((await searchResponse).ok()).toBeTruthy();
+
+  await expect(
+    page.getByRole("heading", { name: "Rural Health Post Staffing Levels" }),
+  ).toBeVisible();
+  await expect(page.getByText("Matched content: qualified")).toBeVisible();
+  await expect(
+    page.getByText(/increase qualified staffing levels/i),
+  ).toBeVisible();
+});

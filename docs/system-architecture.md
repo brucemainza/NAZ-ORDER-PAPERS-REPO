@@ -233,27 +233,40 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-    INPUT["Keyword + optional\nsession/type/limit"]
+    UI["Submissions search UI"]
+    LENGTH{"Trimmed keyword\nat least 3 chars?"}
+    BROWSE["GET /api/records\nSQL browse/filter path"]
+    BFF["POST /api/search\nNext.js BFF"]
+    INPUT["Keyword + optional session/date/member/\nministry/status/type + offset/limit"]
     VIS["Draft and archive\nvisibility filters"]
+    FILTERS["Apply structured filters\nbefore relevance scoring"]
     CANDIDATES["Candidate records"]
     TOKEN["Lowercase, remove punctuation,\nignore tokens under 3 chars"]
     BM25["BM25 term-frequency /\ninverse-frequency scoring"]
     NORMALIZE["Sort and normalize top score to 100"]
+    PAGE["Paginate ranked results\nwith stable rank numbers"]
     LOG["search_logs + audit_logs"]
-    RESULTS["Ranked results"]
+    RESULTS["Cards with full text,\nscore, and matched terms"]
 
+    UI --> LENGTH
+    LENGTH -->|No| BROWSE
+    LENGTH -->|Yes| BFF
+    BFF --> INPUT
     INPUT --> VIS
-    VIS --> CANDIDATES
+    VIS --> FILTERS
+    FILTERS --> CANDIDATES
     CANDIDATES --> TOKEN
     TOKEN --> BM25
     BM25 --> NORMALIZE
-    NORMALIZE --> RESULTS
+    NORMALIZE --> PAGE
+    PAGE --> RESULTS
     INPUT --> LOG
     RESULTS --> LOG
 ```
 
-The record-list endpoint uses SQL filters and partial text matching rather than
-BM25. This supports deterministic browsing, pagination, and combined filters.
+The record-list endpoint uses SQL filters and partial text matching for blank or
+short-keyword browsing. Usable keywords take the BM25 branch so matching content,
+not only record metadata, determines relevance.
 
 ## 10. Archive Flow
 

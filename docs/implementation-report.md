@@ -4,7 +4,7 @@ Project: NAZ Order Papers System
 
 Team: CMZ
 
-Report date: 2026-07-23
+Report date: 2026-07-24
 Branch: `main`
 
 ## 1. Outcome
@@ -88,6 +88,8 @@ The pre-change state and gaps are recorded in
 - Independent archive list/detail/search permissions.
 - Complete session/date/member/ministry/status/type filters.
 - Explicit subject/full-text keyword-search verification.
+- Connected the Submissions page to filtered, paginated BM25 ranking with
+  full-text match context.
 - CSV importer status normalization.
 - Topbar date hydration correction.
 - Full system specification, architecture diagrams, and file catalog.
@@ -112,7 +114,7 @@ The pre-change state and gaps are recorded in
 | FR-023 Order Paper | Complete with format caveat | Exact-date scheduled items, Questions/Motions grouping, stable order, JSON output. |
 | FR-025 Auto-archive | Complete with operational caveat | Startup archives closed/date-ended sessions idempotently; active sessions untouched. |
 | FR-026 Archive access | Complete | `view_archive` for list/detail and `search_archive` for keyword results. |
-| FR-028 Keyword search | Verified | BM25 matches subject/full text and excludes non-matches. |
+| FR-028 Keyword search | Complete | The visible Submissions page uses BM25 for usable keywords; subject/full-text matches, filters, pagination, scores, and matched terms are verified. |
 | FR-029 Filters | Complete | Session/date/member/ministry/status/type independent and combined behavior. |
 
 ## 6. TDD Evidence
@@ -165,7 +167,7 @@ PYTHONPATH=backend .venv/bin/pytest -q backend/tests
 
 Result:
 
-- 82 tests passed.
+- 83 tests passed.
 - No failures.
 - Warnings are framework/runtime deprecations, primarily FastAPI/Starlette
   coroutine detection under Python 3.14 and the legacy FastAPI startup hook.
@@ -181,7 +183,7 @@ npm run test:source
 
 Result:
 
-- 16 source tests passed.
+- 17 source tests passed.
 - No failures.
 
 ### 7.3 Production build
@@ -210,9 +212,9 @@ npm run test:e2e
 
 Result:
 
-- 10 Playwright scenarios passed after approved snapshot updates.
+- 11 Playwright scenarios passed against the approved snapshots.
 - Covered login desktop/mobile, dashboard, submit, search, reports, sessions,
-  users, result detail, audit, and mobile dashboard.
+  users, result detail, audit, mobile dashboard, and a content-only BM25 match.
 - Authenticated tests use a fixed browser time to prevent daily snapshot drift.
 
 ### 7.5 Docker smoke

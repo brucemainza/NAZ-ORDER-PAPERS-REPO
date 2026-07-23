@@ -296,9 +296,22 @@ not an error.
 - member; and
 - ministry.
 
+Archive/draft visibility and optional session, date, member, ministry, status, and
+item-type filters are applied before BM25 scoring. The complete eligible result
+set is ranked first and then paginated with `offset` and `limit`, preserving stable
+rank numbers across pages. The response distinguishes filtered candidates from
+positive-score results.
+
 Search is case-insensitive, strips punctuation, ignores tokens shorter than three
 characters, excludes zero-score rows, normalizes the best score to 100, and returns
-up to the requested limit. Searches and result IDs are logged.
+each record's full text, rank, score, and matched terms. Searches and returned
+result IDs are logged.
+
+The Submissions page sends trimmed keywords of at least three characters to the
+BM25 endpoint through `POST /api/search`. It displays relevance, matched terms,
+and expandable full-text context. Blank, one-character, two-character, and
+filter-only requests continue to use `GET /records` for deterministic SQL
+browsing.
 
 ### 10.3 Similarity candidates
 
