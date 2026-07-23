@@ -889,6 +889,68 @@
     color: var(--black);
   }
 
+  .login-page {
+    min-height: 100vh;
+    background: var(--bg);
+  }
+
+  .login-page__grid {
+    display: grid;
+    min-height: 100vh;
+  }
+
+  .login-page__identity {
+    display: flex;
+    min-height: 100vh;
+    align-items: center;
+    justify-content: center;
+    background: var(--sidebar);
+    padding: 3rem 2rem;
+    color: var(--sidebar-text);
+  }
+
+  .login-page__brand {
+    display: flex;
+    max-width: 42rem;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .login-page__logo {
+    margin-bottom: 1.5rem;
+    border-radius: 9999px;
+    object-fit: cover;
+  }
+
+  .login-page__eyebrow {
+    font-size: 2.25rem;
+    line-height: 2.5rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+
+  .login-page__title {
+    margin-top: 0.75rem;
+    color: #fff;
+    font-size: 1.875rem;
+    line-height: 2.25rem;
+    font-weight: 600;
+  }
+
+  .login-page__form {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 1.5rem;
+  }
+
+  @media (min-width: 1024px) {
+    .login-page__grid {
+      grid-template-columns: 1.1fr 1fr;
+    }
+  }
+
   .panel {
     @apply rounded-md border border-[--border] bg-[--surface] shadow-sm;
   }
