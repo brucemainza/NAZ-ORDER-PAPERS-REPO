@@ -1,12 +1,16 @@
 import { expect, test } from "@playwright/test";
 
 async function login(page) {
-  await page.goto("/login");
-  await page.getByLabel("Employee ID").fill("EMP-001");
-  await page.getByLabel("Password", { exact: true }).fill("Password123!");
-  await page.getByRole("button", { name: "Access portal" }).click();
-  await expect(page).toHaveURL(/\/dashboard$/);
+  const response = await page.request.post("/api/auth/login", {
+    data: {
+      employeeId: "EMP-001",
+      password: "Password123!",
+    },
+  });
+  expect(response.ok()).toBeTruthy();
+  await page.goto("/dashboard");
   await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+  await expect(page.getByText("Lilian Mwape", { exact: true })).toBeVisible();
 }
 
 async function settle(page) {
