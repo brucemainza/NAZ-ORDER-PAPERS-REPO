@@ -18,18 +18,18 @@ function prettifySegment(segment) {
 export function PageHeader({ title, description, actions, }) {
     const pathname = usePathname();
     const segments = pathname.split("/").filter(Boolean);
-    return (<div className="mb-6 flex flex-col gap-4 border-b border-[--border] pb-4 md:flex-row md:items-end md:justify-between">
+    return (<div className="page-header">
       <div>
-        <div className="mb-2 flex flex-wrap items-center gap-1 text-xs text-[--muted]">
+        <div className="page-header__breadcrumbs">
           <span>Portal</span>
-          {segments.map((segment) => (<span key={segment} className="flex items-center gap-1">
-              <ChevronRight className="h-3 w-3"/>
+          {segments.map((segment) => (<span key={segment} className="page-header__breadcrumb">
+              <ChevronRight className="page-header__breadcrumb-icon"/>
               <span>{prettifySegment(segment)}</span>
             </span>))}
         </div>
-        <h1 className="text-xl font-semibold text-[--black]">{title}</h1>
-        {description ? <p className="mt-1 text-sm text-[--muted]">{description}</p> : null}
+        <h1 className="page-header__title">{title}</h1>
+        {description ? <p className="page-header__description">{description}</p> : null}
       </div>
-      {actions ? <div className="flex items-center gap-3">{actions}</div> : null}
+      {actions ? <div className="page-header__actions">{actions}</div> : null}
     </div>);
 }
