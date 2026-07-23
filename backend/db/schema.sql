@@ -57,7 +57,8 @@ CREATE TABLE IF NOT EXISTS parliamentary_records (
   answer_type text CHECK (answer_type IN ('Oral', 'Written')),
   subject text NOT NULL,
   full_text text NOT NULL,
-  status text NOT NULL DEFAULT 'Historical',
+  status text NOT NULL DEFAULT 'Draft'
+    CHECK (status IN ('Draft', 'Submitted', 'Under Review', 'Approved', 'Rejected', 'Scheduled', 'Archived')),
   submitted_by uuid REFERENCES users(id),
   embedding vector(384),
   created_at timestamptz NOT NULL DEFAULT now()

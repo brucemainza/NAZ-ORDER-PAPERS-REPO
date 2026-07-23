@@ -43,14 +43,13 @@ def list_records(
     if status:
         normalized_status = status.strip().lower()
         status_lookup = {
-            "pending": "under review",
-            "pending review": "under review",
+            "draft": "draft",
+            "submitted": "submitted",
             "under review": "under review",
-            "duplicate": "duplicate",
-            "historical": "historical",
-            "clear": "clear (new)",
-            "clear (new)": "clear (new)",
-            "reviewed": "reviewed",
+            "approved": "approved",
+            "rejected": "rejected",
+            "scheduled": "scheduled",
+            "archived": "archived",
         }
         query = query.where(func.lower(ParliamentaryRecord.status) == status_lookup.get(normalized_status, normalized_status))
 

@@ -7,6 +7,16 @@ import { Button, buttonStyles } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { formatDate } from "@/lib/utils";
 
+const statusVariantMap = {
+    Draft: "info",
+    Submitted: "info",
+    "Under Review": "pending",
+    Approved: "clear",
+    Rejected: "duplicate",
+    Scheduled: "reviewed",
+    Archived: "reviewed",
+};
+
 export function SubmissionCard({ record }) {
     const [isExpanded, setIsExpanded] = useState(false);
     
@@ -21,7 +31,7 @@ export function SubmissionCard({ record }) {
           <div className="submission-card__badges">
             <Badge variant={record.item_type === "Question" ? "question" : "motion"}>{record.item_type}</Badge>
             {record.answer_type ? <Badge variant="info">{record.answer_type} answer</Badge> : null}
-            <Badge variant={record.status === "Duplicate" ? "duplicate" : ["Under Review", "Pending Review"].includes(record.status) ? "pending" : "clear"}>{record.status}</Badge>
+            <Badge variant={statusVariantMap[record.status] || "info"}>{record.status}</Badge>
             {record.session_name ? <Badge variant="info">{record.session_name}</Badge> : null}
           </div>
           <div>

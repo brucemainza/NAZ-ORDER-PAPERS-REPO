@@ -79,30 +79,30 @@ ON CONFLICT (code) DO NOTHING;
 -- Parliamentary Records (Questions and Motions)
 INSERT INTO parliamentary_records (item_type, session_id, member, ministry, subject, full_text, status)
 SELECT 'Question', s.id, 'Hon. Chanda Katotobwe', 'Ministry of Health', 'Rural Health Post Staffing Levels',
-  'To ask the Minister of Health whether the Government has any plans to increase qualified staffing levels at rural health posts in Luapula Province where persistent vacancies continue to affect service delivery.', 'Historical'
+  'To ask the Minister of Health whether the Government has any plans to increase qualified staffing levels at rural health posts in Luapula Province where persistent vacancies continue to affect service delivery.', 'Archived'
 FROM parliamentary_sessions s WHERE s.code = 'session-13-2025'
 AND NOT EXISTS (SELECT 1 FROM parliamentary_records r WHERE r.subject = 'Rural Health Post Staffing Levels');
 
 INSERT INTO parliamentary_records (item_type, session_id, member, ministry, subject, full_text, status)
 SELECT 'Question', s.id, 'Hon. Mutale Nalumango', 'Ministry of Education', 'Teacher Deployment in Newly Opened Schools',
-  'To ask the Minister of Education when the Ministry will complete teacher deployment to newly opened secondary schools in Northern Province and what interim staffing arrangements are in place.', 'Historical'
+  'To ask the Minister of Education when the Ministry will complete teacher deployment to newly opened secondary schools in Northern Province and what interim staffing arrangements are in place.', 'Archived'
 FROM parliamentary_sessions s WHERE s.code = 'session-13-2025'
 AND NOT EXISTS (SELECT 1 FROM parliamentary_records r WHERE r.subject = 'Teacher Deployment in Newly Opened Schools');
 
 INSERT INTO parliamentary_records (item_type, session_id, member, ministry, subject, full_text, status)
 SELECT 'Motion', s.id, 'Hon. Miriam Chonya', NULL, 'Motion on Strengthening Constituency Information Desks',
-  'That this House urges the Government to standardise constituency information desks and ensure every district office provides timely public access to parliamentary notices and explanatory briefs.', 'Historical'
+  'That this House urges the Government to standardise constituency information desks and ensure every district office provides timely public access to parliamentary notices and explanatory briefs.', 'Archived'
 FROM parliamentary_sessions s WHERE s.code = 'session-13-2024'
 AND NOT EXISTS (SELECT 1 FROM parliamentary_records r WHERE r.subject = 'Motion on Strengthening Constituency Information Desks');
 
 INSERT INTO parliamentary_records (item_type, session_id, member, ministry, subject, full_text, status)
 SELECT 'Question', s.id, 'Hon. Given Katuta', 'Ministry of Local Government and Rural Development', 'Community Water Point Rehabilitation',
-  'To ask the Minister of Local Government and Rural Development how many community water points were rehabilitated in Kasama District between January and September 2025 and what budget line financed the works.', 'Historical'
+  'To ask the Minister of Local Government and Rural Development how many community water points were rehabilitated in Kasama District between January and September 2025 and what budget line financed the works.', 'Archived'
 FROM parliamentary_sessions s WHERE s.code = 'session-13-2024'
 AND NOT EXISTS (SELECT 1 FROM parliamentary_records r WHERE r.subject = 'Community Water Point Rehabilitation');
 
 INSERT INTO parliamentary_records (item_type, session_id, member, ministry, subject, full_text, status)
 SELECT 'Motion', s.id, 'Hon. Sydney Mushanga', NULL, 'Motion on Digital Archiving of Committee Reports',
-  'That this House resolves that all committee reports tabled before the House be digitised and indexed through a central archival system for institutional continuity and research access.', 'Historical'
+  'That this House resolves that all committee reports tabled before the House be digitised and indexed through a central archival system for institutional continuity and research access.', 'Archived'
 FROM parliamentary_sessions s WHERE s.code = 'session-13-2023'
 AND NOT EXISTS (SELECT 1 FROM parliamentary_records r WHERE r.subject = 'Motion on Digital Archiving of Committee Reports');

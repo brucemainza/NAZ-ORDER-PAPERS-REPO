@@ -50,10 +50,13 @@ export function SearchBar({ sessions, onSearch, isLoading, }) {
         </Select>
         <Select id="searchStatus" label="Status" value={status} onChange={(event) => setStatus(event.target.value)}>
           <option value="All">All statuses</option>
+          <option value="Draft">Draft</option>
+          <option value="Submitted">Submitted</option>
           <option value="Under Review">Under Review</option>
-          <option value="Duplicate">Duplicate</option>
-          <option value="Historical">Historical</option>
-          <option value="Clear">Clear</option>
+          <option value="Approved">Approved</option>
+          <option value="Rejected">Rejected</option>
+          <option value="Scheduled">Scheduled</option>
+          <option value="Archived">Archived</option>
         </Select>
         <div className="search-bar__action">
           <Button type="submit" className="search-bar__button" disabled={isLoading}>

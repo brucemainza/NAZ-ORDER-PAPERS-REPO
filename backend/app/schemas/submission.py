@@ -32,6 +32,25 @@ class SubmissionCreate(BaseModel):
         return self
 
 
+class SubmissionDraftUpdate(BaseModel):
+    member: str | None = Field(default=None, min_length=3, max_length=255)
+    ministry: str | None = Field(default=None, max_length=255)
+    answer_type: Literal["Oral", "Written"] | None = None
+    subject: str | None = Field(default=None, min_length=5, max_length=500)
+    full_text: str | None = Field(default=None, min_length=40)
+
+    @field_validator("member", "ministry", "subject", "full_text", mode="before")
+    @classmethod
+    def strip_text_fields(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+    @model_validator(mode="after")
+    def require_change(self):
+        if not self.model_fields_set:
+            raise ValueError("At least one draft field must be provided")
+        return self
+
+
 class SubmissionRecordOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

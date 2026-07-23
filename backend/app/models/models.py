@@ -2,7 +2,17 @@ from datetime import date, datetime
 from typing import List, Optional
 from uuid import UUID, uuid4
 
-from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, Table, Text, func
+from sqlalchemy import (
+    CheckConstraint,
+    Column,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Table,
+    Text,
+    func,
+)
 from sqlalchemy.dialects.postgresql import ARRAY, UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -162,6 +172,13 @@ class ParliamentarySession(Base):
 
 class ParliamentaryRecord(Base):
     __tablename__ = "parliamentary_records"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('Draft', 'Submitted', 'Under Review', 'Approved', "
+            "'Rejected', 'Scheduled', 'Archived')",
+            name="parliamentary_records_status_check",
+        ),
+    )
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     item_type: Mapped[str] = mapped_column(Text)

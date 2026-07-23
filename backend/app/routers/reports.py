@@ -25,6 +25,11 @@ def reports(
         ip_address=request_ip(request),
     )
 
+    duplicate_record_ids = select(ReviewDecision.record_id).where(
+        ReviewDecision.is_duplicate.is_(True)
+    )
+    is_duplicate_record = ParliamentaryRecord.id.in_(duplicate_record_ids)
+
     session_rows = db.execute(
         select(
             ParliamentarySession.id,
@@ -33,18 +38,8 @@ def reports(
             func.count(ParliamentaryRecord.id),
             func.sum(case((ParliamentaryRecord.item_type == "Question", 1), else_=0)),
             func.sum(case((ParliamentaryRecord.item_type == "Motion", 1), else_=0)),
-            func.sum(
-                case(
-                    (
-                        ParliamentaryRecord.status.in_(
-                            ("Under Review", "Pending Review")
-                        ),
-                        1,
-                    ),
-                    else_=0,
-                )
-            ),
-            func.sum(case((ParliamentaryRecord.status == "Duplicate", 1), else_=0)),
+            func.sum(case((ParliamentaryRecord.status == "Under Review", 1), else_=0)),
+            func.sum(case((is_duplicate_record, 1), else_=0)),
         )
         .join(ParliamentaryRecord, ParliamentaryRecord.session_id == ParliamentarySession.id, isouter=True)
         .group_by(ParliamentarySession.id)
@@ -66,18 +61,8 @@ def reports(
             ParliamentaryRecord.member,
             func.min(ParliamentaryRecord.ministry),
             func.count(ParliamentaryRecord.id),
-            func.sum(
-                case(
-                    (
-                        ParliamentaryRecord.status.in_(
-                            ("Under Review", "Pending Review")
-                        ),
-                        1,
-                    ),
-                    else_=0,
-                )
-            ),
-            func.sum(case((ParliamentaryRecord.status == "Duplicate", 1), else_=0)),
+            func.sum(case((ParliamentaryRecord.status == "Under Review", 1), else_=0)),
+            func.sum(case((is_duplicate_record, 1), else_=0)),
         )
         .group_by(ParliamentaryRecord.member)
         .order_by(func.count(ParliamentaryRecord.id).desc())
@@ -88,18 +73,8 @@ def reports(
         select(
             func.coalesce(ParliamentaryRecord.ministry, "Motions / No department"),
             func.count(ParliamentaryRecord.id),
-            func.sum(
-                case(
-                    (
-                        ParliamentaryRecord.status.in_(
-                            ("Under Review", "Pending Review")
-                        ),
-                        1,
-                    ),
-                    else_=0,
-                )
-            ),
-            func.sum(case((ParliamentaryRecord.status == "Duplicate", 1), else_=0)),
+            func.sum(case((ParliamentaryRecord.status == "Under Review", 1), else_=0)),
+            func.sum(case((is_duplicate_record, 1), else_=0)),
         )
         .group_by(ParliamentaryRecord.ministry)
         .order_by(func.count(ParliamentaryRecord.id).desc())

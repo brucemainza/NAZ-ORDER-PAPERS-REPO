@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -8,10 +10,16 @@ from app.models import ParliamentaryRecord, ParliamentarySession, User
 from app.schemas.search import SearchResultOut
 from app.schemas.submission import (
     SubmissionCreate,
+    SubmissionDraftUpdate,
     SubmissionRecordOut,
     SubmissionResponse,
 )
 from app.services.similarity import find_previously_addressed_candidates
+from app.services.submission_status import (
+    InvalidStatusTransition,
+    SubmissionStatus,
+    transition_submission,
+)
 
 router = APIRouter(prefix="/submissions", tags=["submissions"])
 
@@ -39,9 +47,7 @@ def review_queue(
         db.scalars(
             select(ParliamentaryRecord)
             .where(
-                ParliamentaryRecord.status.in_(
-                    ("Under Review", "Pending Review")
-                )
+                ParliamentaryRecord.status == SubmissionStatus.UNDER_REVIEW.value
             )
             .order_by(ParliamentaryRecord.created_at.asc())
         ).all()
@@ -76,9 +82,10 @@ def create_submission(
         answer_type=submission.answer_type,
         subject=submission.subject.strip(),
         full_text=submission.full_text.strip(),
-        status="Under Review",
+        status=SubmissionStatus.SUBMITTED.value,
         submitted_by=user.id,
     )
+    transition_submission(record, SubmissionStatus.UNDER_REVIEW)
     db.add(record)
     db.flush()
     add_audit_log(
@@ -106,3 +113,121 @@ def create_submission(
             for index, match in enumerate(candidates)
         ],
     )
+
+
+@router.post("/{record_id}/submit", response_model=SubmissionRecordOut)
+def resubmit_draft(
+    record_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ParliamentaryRecord:
+    record = db.get(ParliamentaryRecord, record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+    if record.submitted_by != user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Only the submission owner can resubmit a draft",
+        )
+
+    required_permission = (
+        "submit_question"
+        if record.item_type == "Question"
+        else "submit_motion"
+    )
+    if not user.has_permission(required_permission):
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    try:
+        transition_submission(record, SubmissionStatus.SUBMITTED)
+        transition_submission(record, SubmissionStatus.UNDER_REVIEW)
+    except InvalidStatusTransition as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+    add_audit_log(
+        db,
+        user_id=user.id,
+        action="record_resubmission",
+        entity_type="parliamentary_record",
+        entity_id=str(record.id),
+        details=record.subject,
+        ip_address=request_ip(request),
+    )
+    db.commit()
+    db.refresh(record)
+    return record
+
+
+@router.patch("/{record_id}", response_model=SubmissionRecordOut)
+def update_draft(
+    record_id: UUID,
+    update: SubmissionDraftUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ParliamentaryRecord:
+    record = db.get(ParliamentaryRecord, record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+    if record.submitted_by != user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Only the submission owner can edit a draft",
+        )
+    if record.status != SubmissionStatus.DRAFT.value:
+        raise HTTPException(
+            status_code=409,
+            detail="Only Draft submissions can be edited",
+        )
+
+    required_permission = (
+        "submit_question"
+        if record.item_type == "Question"
+        else "submit_motion"
+    )
+    if not user.has_permission(required_permission):
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    changes = update.model_dump(exclude_unset=True)
+    for required_field in ("member", "subject", "full_text"):
+        if required_field in changes and changes[required_field] is None:
+            raise HTTPException(
+                status_code=422,
+                detail=f"{required_field} cannot be null",
+            )
+
+    proposed_ministry = changes.get("ministry", record.ministry)
+    proposed_answer_type = changes.get("answer_type", record.answer_type)
+    if record.item_type == "Question":
+        if not (proposed_ministry or "").strip():
+            raise HTTPException(
+                status_code=422,
+                detail="Ministry or department is required for questions",
+            )
+        if proposed_answer_type is None:
+            raise HTTPException(
+                status_code=422,
+                detail="Oral or written answer type is required for questions",
+            )
+    elif proposed_answer_type is not None:
+        raise HTTPException(
+            status_code=422,
+            detail="Answer type only applies to questions",
+        )
+
+    for field, value in changes.items():
+        setattr(record, field, value)
+
+    add_audit_log(
+        db,
+        user_id=user.id,
+        action="draft_update",
+        entity_type="parliamentary_record",
+        entity_id=str(record.id),
+        details=", ".join(sorted(changes)),
+        ip_address=request_ip(request),
+    )
+    db.commit()
+    db.refresh(record)
+    return record

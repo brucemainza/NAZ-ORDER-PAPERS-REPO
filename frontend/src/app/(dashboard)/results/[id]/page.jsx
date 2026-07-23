@@ -16,6 +16,16 @@ import { hasPermission } from "@/lib/auth";
 import { normalizeSearchResult, normalizeSubmission } from "@/lib/records";
 import { formatDate, formatDateTime } from "@/lib/utils";
 
+const statusVariantMap = {
+    Draft: "info",
+    Submitted: "info",
+    "Under Review": "pending",
+    Approved: "clear",
+    Rejected: "duplicate",
+    Scheduled: "reviewed",
+    Archived: "reviewed",
+};
+
 export default function ResultDetailPage() {
     const params = useParams();
     const { user } = useAuthContext();
@@ -77,7 +87,7 @@ export default function ResultDetailPage() {
         ...(hasPermission(user, "reject_submission") ? [{ action: "Reject", variant: "danger" }] : []),
         ...(hasPermission(user, "request_changes") ? [{ action: "Request Changes", variant: "secondary" }] : []),
     ];
-    const isWorkflowReviewable = ["Under Review", "Pending Review"].includes(submission?.status);
+    const isWorkflowReviewable = submission?.status === "Under Review";
 
     const recordDecision = async () => {
         setIsSaving(true);
@@ -157,7 +167,7 @@ export default function ResultDetailPage() {
           <Card className="result-detail__summary">
             <div className="result-detail__badges">
               <Badge variant={submission.type === "Question" ? "question" : "motion"}>{submission.type}</Badge>
-              <Badge variant={submission.status === "Duplicate" ? "duplicate" : submission.status === "Clear (New)" ? "clear" : "reviewed"}>{submission.status}</Badge>
+              <Badge variant={statusVariantMap[submission.status] || "info"}>{submission.status}</Badge>
             </div>
             <h2 className="result-detail__subject">{submission.subject}</h2>
             <div className="result-detail__meta">

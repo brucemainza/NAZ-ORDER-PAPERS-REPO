@@ -49,6 +49,44 @@ def ensure_runtime_schema() -> None:
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_at timestamptz",
         "ALTER TABLE parliamentary_records ADD COLUMN IF NOT EXISTS answer_type text",
         "ALTER TABLE parliamentary_records ADD COLUMN IF NOT EXISTS submitted_by uuid REFERENCES users(id)",
+        """
+        UPDATE parliamentary_records
+        SET status = CASE
+            WHEN status IN (
+                'Draft', 'Submitted', 'Under Review', 'Approved',
+                'Rejected', 'Scheduled', 'Archived'
+            ) THEN status
+            WHEN status IN ('Pending', 'Pending Review') THEN 'Under Review'
+            WHEN status IN ('Clear', 'Clear (New)', 'Reviewed') THEN 'Approved'
+            WHEN status IN ('Duplicate', 'Substantially Similar') THEN 'Rejected'
+            ELSE 'Archived'
+        END
+        WHERE status NOT IN (
+            'Draft', 'Submitted', 'Under Review', 'Approved',
+            'Rejected', 'Scheduled', 'Archived'
+        )
+        """,
+        "ALTER TABLE parliamentary_records ALTER COLUMN status SET DEFAULT 'Draft'",
+        """
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1
+                FROM pg_constraint
+                WHERE conname = 'parliamentary_records_status_check'
+            ) THEN
+                ALTER TABLE parliamentary_records
+                ADD CONSTRAINT parliamentary_records_status_check
+                CHECK (
+                    status IN (
+                        'Draft', 'Submitted', 'Under Review', 'Approved',
+                        'Rejected', 'Scheduled', 'Archived'
+                    )
+                );
+            END IF;
+        END;
+        $$
+        """,
         "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS entity_type text",
         "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS entity_id text",
         "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS details text",
