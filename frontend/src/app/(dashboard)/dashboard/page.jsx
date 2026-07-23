@@ -55,21 +55,21 @@ export default function DashboardPage() {
             New Submission
           </Link>}/>
 
-      {isLoading ? (<div className="rounded-md border border-[--border] bg-white px-6 py-10 text-center shadow-sm">
-          <Spinner className="mx-auto h-6 w-6"/>
-          <p className="mt-3 text-sm text-[--muted]">Loading dashboard data...</p>
+      {isLoading ? (<div className="dashboard-page__loading">
+          <Spinner className="dashboard-page__spinner"/>
+          <p className="dashboard-page__loading-text">Loading dashboard data...</p>
         </div>) : error ? (<EmptyState title="Dashboard unavailable" description={error}/>) : (<>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="dashboard-page__stats">
           {stats.map((stat) => (<StatCard key={stat.label} {...stat}/>))}
         </div>
 
-        <section className="mt-6 space-y-3">
-          <div className="flex items-center justify-between">
+        <section className="dashboard-page__activity">
+          <div className="dashboard-page__activity-header">
             <div>
-              <h2 className="text-base font-medium text-[--black]">Recent Activity</h2>
-              <p className="text-sm text-[--muted]">Latest records from the current and previous sessions.</p>
+              <h2 className="dashboard-page__activity-title">Recent Activity</h2>
+              <p className="dashboard-page__activity-description">Latest records from the current and previous sessions.</p>
             </div>
-            {activeSession ? (<span className="rounded-md border border-[--border] bg-white px-3 py-2 text-sm text-[--muted]">
+            {activeSession ? (<span className="dashboard-page__session">
               {activeSession.name}
             </span>) : null}
           </div>
