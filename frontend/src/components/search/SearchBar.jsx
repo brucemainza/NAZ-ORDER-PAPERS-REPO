@@ -31,11 +31,11 @@ export function SearchBar({ sessions, onSearch, isLoading, }) {
         };
     }, [query, sessionId, itemType, status]);
 
-    return (<form className="rounded-md border border-[--border] bg-white p-5 shadow-sm" onSubmit={async (event) => {
+    return (<form className="search-bar" onSubmit={async (event) => {
             event.preventDefault();
             applyFilters();
         }}>
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
+      <div className="search-bar__grid">
         <Input id="searchQuery" label="Search text" placeholder="Enter keywords, member name, subject or ministry" value={query} onChange={(event) => setQuery(event.target.value)}/>
         <Select id="searchSession" label="Session" value={sessionId} onChange={(event) => setSessionId(event.target.value)}>
           <option value="">All sessions</option>
@@ -55,9 +55,9 @@ export function SearchBar({ sessions, onSearch, isLoading, }) {
           <option value="Historical">Historical</option>
           <option value="Clear">Clear</option>
         </Select>
-        <div className="flex items-end">
-          <Button type="submit" className="w-full lg:w-auto" disabled={isLoading}>
-            <SearchIcon className="h-4 w-4"/>
+        <div className="search-bar__action">
+          <Button type="submit" className="search-bar__button" disabled={isLoading}>
+            <SearchIcon className="search-bar__icon"/>
             {isLoading ? "Searching..." : "Search"}
           </Button>
         </div>
