@@ -17,6 +17,7 @@ def find_previously_addressed_candidates(
         db.execute(
             select(ParliamentaryRecord)
             .where(ParliamentaryRecord.id != record.id)
+            .where(ParliamentaryRecord.status != "Draft")
             .order_by(ParliamentaryRecord.created_at.desc())
         ).scalars().all()
     )
@@ -47,6 +48,7 @@ def _vector_matches(db: Session, record_id: UUID, limit: int) -> list[RankedMatc
                 JOIN parliamentary_records candidate
                   ON candidate.id != source.id
                  AND candidate.embedding IS NOT NULL
+                 AND candidate.status != 'Draft'
                 WHERE source.id = :record_id
                   AND source.embedding IS NOT NULL
                 ORDER BY source.embedding <=> candidate.embedding

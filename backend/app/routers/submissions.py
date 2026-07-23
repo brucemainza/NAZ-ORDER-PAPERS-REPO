@@ -16,6 +16,20 @@ from app.services.similarity import find_previously_addressed_candidates
 router = APIRouter(prefix="/submissions", tags=["submissions"])
 
 
+@router.get("/mine", response_model=list[SubmissionRecordOut])
+def my_submissions(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list[ParliamentaryRecord]:
+    return list(
+        db.scalars(
+            select(ParliamentaryRecord)
+            .where(ParliamentaryRecord.submitted_by == user.id)
+            .order_by(ParliamentaryRecord.created_at.desc())
+        ).all()
+    )
+
+
 @router.get("/review-queue", response_model=list[SubmissionRecordOut])
 def review_queue(
     db: Session = Depends(get_db),
@@ -63,6 +77,7 @@ def create_submission(
         subject=submission.subject.strip(),
         full_text=submission.full_text.strip(),
         status="Under Review",
+        submitted_by=user.id,
     )
     db.add(record)
     db.flush()

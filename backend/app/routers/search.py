@@ -7,6 +7,7 @@ from app.deps import add_audit_log, get_current_user, request_ip
 from app.models import ParliamentaryRecord, SearchLog, User
 from app.retrieval.bm25 import rank_records
 from app.schemas.search import SearchRequest, SearchResponse, SearchResultOut
+from app.services.record_visibility import restrict_draft_visibility
 
 router = APIRouter(prefix="/search", tags=["search"])
 
@@ -19,6 +20,7 @@ def search_records(
     user: User = Depends(get_current_user),
 ) -> SearchResponse:
     query = select(ParliamentaryRecord)
+    query = restrict_draft_visibility(query, user)
 
     if search.session_id:
         query = query.where(ParliamentaryRecord.session_id == search.session_id)

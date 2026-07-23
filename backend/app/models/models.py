@@ -172,9 +172,14 @@ class ParliamentaryRecord(Base):
     subject: Mapped[str] = mapped_column(Text)
     full_text: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(Text)
+    submitted_by: Mapped[Optional[UUID]] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("users.id"),
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     session: Mapped["ParliamentarySession"] = relationship(back_populates="records")
+    submitter: Mapped[Optional["User"]] = relationship()
 
 
 class SearchLog(Base):

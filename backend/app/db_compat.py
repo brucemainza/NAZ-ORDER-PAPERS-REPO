@@ -48,6 +48,7 @@ def ensure_runtime_schema() -> None:
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_login_attempts integer NOT NULL DEFAULT 0",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_at timestamptz",
         "ALTER TABLE parliamentary_records ADD COLUMN IF NOT EXISTS answer_type text",
+        "ALTER TABLE parliamentary_records ADD COLUMN IF NOT EXISTS submitted_by uuid REFERENCES users(id)",
         "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS entity_type text",
         "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS entity_id text",
         "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS details text",

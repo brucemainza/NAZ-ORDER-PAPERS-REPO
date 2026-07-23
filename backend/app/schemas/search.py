@@ -23,6 +23,7 @@ class SearchRecordOut(BaseModel):
     subject: str
     full_text: str
     status: str
+    submitted_by: UUID | None
     created_at: datetime
 
 

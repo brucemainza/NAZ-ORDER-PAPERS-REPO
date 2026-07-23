@@ -15,6 +15,7 @@ class RecordListOut(BaseModel):
     answer_type: str | None
     subject: str
     status: str
+    submitted_by: UUID | None
     created_at: datetime
     session_name: str | None = None
 
@@ -29,6 +30,7 @@ class RecordListOut(BaseModel):
             'answer_type': obj.answer_type,
             'subject': obj.subject,
             'status': obj.status,
+            'submitted_by': obj.submitted_by,
             'created_at': obj.created_at,
             'session_name': obj.session.name if obj.session else None,
         }

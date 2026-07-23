@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS parliamentary_records (
   subject text NOT NULL,
   full_text text NOT NULL,
   status text NOT NULL DEFAULT 'Historical',
+  submitted_by uuid REFERENCES users(id),
   embedding vector(384),
   created_at timestamptz NOT NULL DEFAULT now()
 );

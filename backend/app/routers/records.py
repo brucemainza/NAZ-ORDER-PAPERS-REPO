@@ -9,6 +9,7 @@ from app.deps import add_audit_log, get_current_user, request_ip
 from app.models import ParliamentaryRecord, ParliamentarySession, User
 from app.schemas.record import RecordDetailOut, RecordListOut
 from app.schemas.search import SearchResultOut
+from app.services.record_visibility import can_view_record, restrict_draft_visibility
 from app.services.similarity import find_previously_addressed_candidates
 
 router = APIRouter(prefix="/records", tags=["records"])
@@ -26,6 +27,7 @@ def list_records(
     user: User = Depends(get_current_user),
 ) -> list[RecordListOut]:
     query = select(ParliamentaryRecord).options(joinedload(ParliamentaryRecord.session)).order_by(ParliamentaryRecord.created_at.desc())
+    query = restrict_draft_visibility(query, user)
 
     if session_id:
         query = query.where(ParliamentaryRecord.session_id == session_id)
@@ -85,6 +87,8 @@ def get_record(
 
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
+    if not can_view_record(record, user):
+        raise HTTPException(status_code=403, detail="Record is not visible")
 
     add_audit_log(
         db,
@@ -110,6 +114,8 @@ def similar_records(
     record = db.execute(select(ParliamentaryRecord).where(ParliamentaryRecord.id == record_id)).scalars().first()
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
+    if not can_view_record(record, user):
+        raise HTTPException(status_code=403, detail="Record is not visible")
 
     candidates = find_previously_addressed_candidates(db, record=record, limit=5)
     add_audit_log(
