@@ -256,6 +256,10 @@
     box-shadow: 0 0 0 2px #fee2e2;
   }
 
+  .ui-field__control--textarea {
+    min-height: 140px;
+  }
+
   .ui-field__message {
     color: var(--muted);
     font-size: 0.75rem;
