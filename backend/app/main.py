@@ -7,6 +7,7 @@ from app.routers import (
     audit,
     auth,
     health,
+    order_papers,
     records,
     reports,
     reviews,
@@ -36,6 +37,7 @@ app.add_middleware(
 
 app.include_router(health.router)
 app.include_router(sessions.router)
+app.include_router(order_papers.router)
 app.include_router(records.router)
 app.include_router(search.router)
 app.include_router(scheduling.router)
