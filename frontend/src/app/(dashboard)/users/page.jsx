@@ -35,7 +35,7 @@ export default function UsersPage() {
         {
             key: "actions",
             header: "Actions",
-            render: () => (<div className="flex gap-2">
+            render: () => (<div className="users-page__actions">
           <Button variant="secondary" size="sm">
             Edit Role
           </Button>
@@ -76,7 +76,7 @@ export default function UsersPage() {
               Save User
             </Button>
           </>}>
-        <div className="grid gap-4">
+        <div className="users-page__form">
           <Input label="Full Name" value={formValues.name} onChange={(event) => setFormValues((current) => ({ ...current, name: event.target.value }))}/>
           <Input label="Employee ID" value={formValues.employeeId} onChange={(event) => setFormValues((current) => ({ ...current, employeeId: event.target.value }))}/>
           <Select label="Role" value={formValues.role} onChange={(event) => setFormValues((current) => ({ ...current, role: event.target.value }))}>

@@ -1496,6 +1496,16 @@
     }
   }
 
+  .users-page__actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .users-page__form {
+    display: grid;
+    gap: 1rem;
+  }
+
   .panel {
     @apply rounded-md border border-[--border] bg-[--surface] shadow-sm;
   }
