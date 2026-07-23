@@ -26,6 +26,8 @@ CREATE TABLE IF NOT EXISTS users (
   role text NOT NULL,
   status text NOT NULL CHECK (status IN ('Active', 'Inactive')),
   password_hash text,
+  failed_login_attempts integer NOT NULL DEFAULT 0,
+  locked_at timestamptz,
   last_login_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now()
 );

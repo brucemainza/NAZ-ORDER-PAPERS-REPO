@@ -3,7 +3,18 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.db_compat import ensure_runtime_schema
-from app.routers import audit, auth, health, records, reports, reviews, search, sessions, submissions
+from app.routers import (
+    audit,
+    auth,
+    health,
+    records,
+    reports,
+    reviews,
+    search,
+    sessions,
+    submissions,
+    users,
+)
 
 settings = get_settings()
 
@@ -30,6 +41,7 @@ app.include_router(reviews.router)
 app.include_router(audit.router)
 app.include_router(reports.router)
 app.include_router(auth.router)
+app.include_router(users.router)
 
 
 @app.on_event("startup")

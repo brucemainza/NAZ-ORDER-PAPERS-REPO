@@ -2,7 +2,7 @@ from datetime import date, datetime
 from typing import List, Optional
 from uuid import UUID, uuid4
 
-from sqlalchemy import Column, Date, DateTime, ForeignKey, Table, Text, func
+from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, Table, Text, func
 from sqlalchemy.dialects.postgresql import ARRAY, UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -92,6 +92,13 @@ class User(Base):
     role: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(Text)
     password_hash: Mapped[Optional[str]] = mapped_column(Text)
+    failed_login_attempts: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        server_default="0",
+        nullable=False,
+    )
+    locked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     
