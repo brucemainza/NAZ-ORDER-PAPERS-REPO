@@ -30,7 +30,7 @@ export default function SessionsPage() {
         {
             key: "actions",
             header: "Actions",
-            render: () => (<div className="flex gap-2">
+            render: () => (<div className="sessions-page__actions">
           <Button variant="secondary" size="sm">
             Edit
           </Button>
@@ -70,9 +70,9 @@ export default function SessionsPage() {
               Save Session
             </Button>
           </>}>
-        <div className="grid gap-4">
+        <div className="sessions-page__form">
           <Input label="Session Name" value={formValues.name} onChange={(event) => setFormValues((current) => ({ ...current, name: event.target.value }))}/>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="sessions-page__dates">
             <Input label="Start Date" type="date" value={formValues.startDate} onChange={(event) => setFormValues((current) => ({ ...current, startDate: event.target.value }))}/>
             <Input label="End Date" type="date" value={formValues.endDate} onChange={(event) => setFormValues((current) => ({ ...current, endDate: event.target.value }))}/>
           </div>

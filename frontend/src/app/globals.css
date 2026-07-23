@@ -1479,6 +1479,23 @@
     }
   }
 
+  .sessions-page__actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .sessions-page__form,
+  .sessions-page__dates {
+    display: grid;
+    gap: 1rem;
+  }
+
+  @media (min-width: 768px) {
+    .sessions-page__dates {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
   .panel {
     @apply rounded-md border border-[--border] bg-[--surface] shadow-sm;
   }
