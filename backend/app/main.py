@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
+from app.database import SessionLocal
 from app.db_compat import ensure_runtime_schema
 from app.routers import (
     audit,
@@ -18,6 +19,7 @@ from app.routers import (
     users,
     workflow_reviews,
 )
+from app.services.archiving import archive_ended_session_records
 
 settings = get_settings()
 
@@ -53,3 +55,6 @@ app.include_router(workflow_reviews.router)
 @app.on_event("startup")
 def startup() -> None:
     ensure_runtime_schema()
+    with SessionLocal() as db:
+        archive_ended_session_records(db)
+        db.commit()
