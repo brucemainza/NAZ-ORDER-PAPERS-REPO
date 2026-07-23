@@ -18,9 +18,9 @@ export default function SubmitPage() {
     }, []);
     return (<div>
       <PageHeader title="New Submission" description="Capture a draft parliamentary question or motion, then run a similarity review before it proceeds." actions={<Link href="/search"><Button variant="primary">View All Submissions</Button></Link>}/>
-      {isLoading ? (<div className="rounded-md border border-[--border] bg-white px-6 py-10 text-center shadow-sm">
-          <Spinner className="mx-auto h-6 w-6"/>
-          <p className="mt-3 text-sm text-[--muted]">Loading parliamentary sessions...</p>
+      {isLoading ? (<div className="page-loading">
+          <Spinner className="page-loading__spinner"/>
+          <p className="page-loading__text">Loading parliamentary sessions...</p>
         </div>) : sessions.length === 0 ? (<EmptyState title="No sessions available" description="Add or activate a parliamentary session before creating submissions."/>) : (<SubmitForm sessions={sessions}/>)}
     </div>);
 }
