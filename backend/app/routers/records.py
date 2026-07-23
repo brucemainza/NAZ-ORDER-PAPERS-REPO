@@ -9,7 +9,11 @@ from app.deps import add_audit_log, get_current_user, request_ip
 from app.models import ParliamentaryRecord, ParliamentarySession, User
 from app.schemas.record import RecordDetailOut, RecordListOut
 from app.schemas.search import SearchResultOut
-from app.services.record_visibility import can_view_record, restrict_draft_visibility
+from app.services.record_visibility import (
+    can_view_record,
+    restrict_archive_visibility,
+    restrict_draft_visibility,
+)
 from app.services.similarity import find_previously_addressed_candidates
 
 router = APIRouter(prefix="/records", tags=["records"])
@@ -28,6 +32,7 @@ def list_records(
 ) -> list[RecordListOut]:
     query = select(ParliamentaryRecord).options(joinedload(ParliamentaryRecord.session)).order_by(ParliamentaryRecord.created_at.desc())
     query = restrict_draft_visibility(query, user)
+    query = restrict_archive_visibility(query, user, "view_archive")
 
     if session_id:
         query = query.where(ParliamentaryRecord.session_id == session_id)
