@@ -1,6 +1,9 @@
 import { expect, test } from "@playwright/test";
 
+const SNAPSHOT_TIME = new Date("2026-07-23T10:00:00+02:00");
+
 async function login(page) {
+  await page.clock.setFixedTime(SNAPSHOT_TIME);
   const response = await page.request.post("/api/auth/login", {
     data: {
       employeeId: "EMP-001",
