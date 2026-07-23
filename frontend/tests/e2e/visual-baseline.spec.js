@@ -66,7 +66,7 @@ test("authenticated application route visual baseline", async ({ page }) => {
   await settle(page);
   await expect(page.getByRole("heading", { name: "Audit Trail" })).toBeVisible();
   await expect(page).toHaveScreenshot("audit.png", {
-    fullPage: true,
+    fullPage: false,
     mask: [page.locator("table")],
   });
 });
