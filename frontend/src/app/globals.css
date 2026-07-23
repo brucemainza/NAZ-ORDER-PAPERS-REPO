@@ -838,6 +838,57 @@
     }
   }
 
+  .login-form {
+    width: 100%;
+    max-width: 28rem;
+    border: 1px solid var(--border);
+    border-radius: 0.375rem;
+    background: #fff;
+    padding: 2rem;
+    box-shadow: 0 1px 2px 0 rgba(13, 13, 13, 0.06);
+  }
+
+  .login-form__header {
+    margin-bottom: 1.5rem;
+  }
+
+  .login-form__title {
+    color: var(--black);
+    font-size: 1.25rem;
+    line-height: 1.75rem;
+    font-weight: 600;
+  }
+
+  .login-form__description {
+    margin-top: 0.5rem;
+    color: var(--muted);
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+
+  .login-form__error {
+    margin-bottom: 1rem;
+  }
+
+  .login-form__fields > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 1rem;
+  }
+
+  .login-form__password {
+    position: relative;
+  }
+
+  .login-form__password-toggle {
+    position: absolute;
+    right: 0.75rem;
+    top: 2.1rem;
+    color: var(--muted);
+  }
+
+  .login-form__password-toggle:hover {
+    color: var(--black);
+  }
+
   .panel {
     @apply rounded-md border border-[--border] bg-[--surface] shadow-sm;
   }
