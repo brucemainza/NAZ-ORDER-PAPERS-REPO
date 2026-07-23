@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
@@ -16,6 +16,7 @@ class RecordListOut(BaseModel):
     subject: str
     status: str
     submitted_by: UUID | None
+    sitting_date: date | None
     created_at: datetime
     session_name: str | None = None
 
@@ -31,6 +32,7 @@ class RecordListOut(BaseModel):
             'subject': obj.subject,
             'status': obj.status,
             'submitted_by': obj.submitted_by,
+            'sitting_date': obj.sitting_date,
             'created_at': obj.created_at,
             'session_name': obj.session.name if obj.session else None,
         }

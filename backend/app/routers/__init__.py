@@ -5,6 +5,7 @@ from . import records
 from . import reports
 from . import reviews
 from . import search
+from . import scheduling
 from . import sessions
 from . import submissions
 from . import users

@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button, buttonStyles } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Input } from "@/components/ui/Input";
 import { Spinner } from "@/components/ui/Spinner";
 import { Textarea } from "@/components/ui/Textarea";
 import { Toast } from "@/components/ui/Toast";
@@ -44,6 +45,10 @@ export default function ResultDetailPage() {
     const [workflowResult, setWorkflowResult] = useState(null);
     const [workflowError, setWorkflowError] = useState(null);
     const [isWorkflowSaving, setIsWorkflowSaving] = useState(false);
+    const [sittingDate, setSittingDate] = useState("");
+    const [scheduleResult, setScheduleResult] = useState(null);
+    const [scheduleError, setScheduleError] = useState(null);
+    const [isScheduling, setIsScheduling] = useState(false);
 
     const loadRecord = async () => {
         setIsLoading(true);
@@ -88,6 +93,7 @@ export default function ResultDetailPage() {
         ...(hasPermission(user, "request_changes") ? [{ action: "Request Changes", variant: "secondary" }] : []),
     ];
     const isWorkflowReviewable = submission?.status === "Under Review";
+    const canSchedule = hasPermission(user, "schedule_item") && submission?.status === "Approved";
 
     const recordDecision = async () => {
         setIsSaving(true);
@@ -140,6 +146,32 @@ export default function ResultDetailPage() {
         }
     };
 
+    const scheduleSubmission = async () => {
+        setIsScheduling(true);
+        setScheduleError(null);
+        try {
+            const response = await fetch(`/api/submissions/${params.id}/schedule`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ sitting_date: sittingDate }),
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.message || "Could not schedule submission");
+            }
+            setSubmission((current) => current ? {
+                ...current,
+                status: data.status,
+                sittingDate: data.sitting_date,
+            } : current);
+            setScheduleResult(data);
+        } catch (err) {
+            setScheduleError(err.message || "Could not schedule submission");
+        } finally {
+            setIsScheduling(false);
+        }
+    };
+
     if (isLoading) {
         return (<div>
           <PageHeader title="Result Record" description="Detailed submission review and historical similarity context."/>
@@ -174,6 +206,7 @@ export default function ResultDetailPage() {
               <span>Member: {submission.member}</span>
               <span>Date: {formatDate(submission.submittedAt)}</span>
               {submission.ministry ? <span>Ministry: {submission.ministry}</span> : null}
+              {submission.sittingDate ? <span>Sitting: {formatDate(submission.sittingDate)}</span> : null}
             </div>
             <div className="result-detail__body">
               {submission.fullText}
@@ -212,6 +245,27 @@ export default function ResultDetailPage() {
         </div>
 
         <div className="result-detail__aside">
+          {canSchedule || scheduleResult ? (<Card className="result-detail__panel">
+            <h2 className="result-detail__panel-title">Schedule Sitting</h2>
+            <p className="result-detail__panel-description">Assign this approved item to a specific sitting date.</p>
+            {canSchedule ? (<>
+              <div className="result-detail__panel-field">
+                <Input type="date" label="Sitting Date" value={sittingDate} onChange={(event) => setSittingDate(event.target.value)}/>
+              </div>
+              <div className="result-detail__panel-field">
+                <Button fullWidth onClick={scheduleSubmission} disabled={isScheduling || !sittingDate}>
+                  {isScheduling ? "Scheduling..." : "Schedule Item"}
+                </Button>
+              </div>
+            </>) : null}
+            {scheduleResult ? (<div className="result-detail__panel-field">
+              <Toast variant="success" title="Item scheduled" description={`Scheduled for ${formatDate(scheduleResult.sitting_date)}.`}/>
+            </div>) : null}
+            {scheduleError ? (<div className="result-detail__panel-field">
+              <Toast variant="error" title="Scheduling error" description={scheduleError}/>
+            </div>) : null}
+          </Card>) : null}
+
           {workflowActions.length > 0 ? (<Card className="result-detail__panel">
             <h2 className="result-detail__panel-title">Workflow Decision</h2>
             <p className="result-detail__panel-description">Approve, reject, or return this submission to Draft for changes.</p>

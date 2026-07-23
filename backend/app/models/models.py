@@ -193,6 +193,7 @@ class ParliamentaryRecord(Base):
         PostgresUUID(as_uuid=True),
         ForeignKey("users.id"),
     )
+    sitting_date: Mapped[Optional[date]] = mapped_column(Date)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     session: Mapped["ParliamentarySession"] = relationship(back_populates="records")

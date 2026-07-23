@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 from uuid import UUID
 
@@ -51,6 +51,10 @@ class SubmissionDraftUpdate(BaseModel):
         return self
 
 
+class SubmissionSchedule(BaseModel):
+    sitting_date: date
+
+
 class SubmissionRecordOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -64,6 +68,7 @@ class SubmissionRecordOut(BaseModel):
     full_text: str
     status: str
     submitted_by: UUID | None
+    sitting_date: date | None
     created_at: datetime
 
 

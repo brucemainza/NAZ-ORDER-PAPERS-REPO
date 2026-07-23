@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -24,6 +24,7 @@ class SearchRecordOut(BaseModel):
     full_text: str
     status: str
     submitted_by: UUID | None
+    sitting_date: date | None
     created_at: datetime
 
 

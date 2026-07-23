@@ -49,6 +49,7 @@ def ensure_runtime_schema() -> None:
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_at timestamptz",
         "ALTER TABLE parliamentary_records ADD COLUMN IF NOT EXISTS answer_type text",
         "ALTER TABLE parliamentary_records ADD COLUMN IF NOT EXISTS submitted_by uuid REFERENCES users(id)",
+        "ALTER TABLE parliamentary_records ADD COLUMN IF NOT EXISTS sitting_date date",
         """
         UPDATE parliamentary_records
         SET status = CASE

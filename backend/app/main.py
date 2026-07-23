@@ -11,6 +11,7 @@ from app.routers import (
     reports,
     reviews,
     search,
+    scheduling,
     sessions,
     submissions,
     users,
@@ -37,6 +38,7 @@ app.include_router(health.router)
 app.include_router(sessions.router)
 app.include_router(records.router)
 app.include_router(search.router)
+app.include_router(scheduling.router)
 app.include_router(submissions.router)
 app.include_router(reviews.router)
 app.include_router(audit.router)
