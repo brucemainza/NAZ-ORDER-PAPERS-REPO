@@ -77,18 +77,18 @@ export default function SearchPage() {
 
       <SearchBar sessions={sessions} onSearch={handleSearch} isLoading={isLoading}/>
 
-      <section className="mt-6 space-y-4">
-        {isLoading ? (<div className="rounded-md border border-[--border] bg-white px-6 py-10 text-center shadow-sm">
-            <Spinner className="mx-auto h-6 w-6"/>
-            <p className="mt-3 text-sm text-[--muted]">Loading submissions...</p>
-          </div>) : error ? (<EmptyState title="Unable to load submissions" description={error}/>) : records.length === 0 ? (<EmptyState title="No submissions found" description="Try changing the filters or use the form above to explore current parliamentary submissions."/>) : (<div className="space-y-4">
+      <section className="search-page__results">
+        {isLoading ? (<div className="page-loading">
+            <Spinner className="page-loading__spinner"/>
+            <p className="page-loading__text">Loading submissions...</p>
+          </div>) : error ? (<EmptyState title="Unable to load submissions" description={error}/>) : records.length === 0 ? (<EmptyState title="No submissions found" description="Try changing the filters or use the form above to explore current parliamentary submissions."/>) : (<div className="search-page__list">
             {records.map((record) => {
               const sessionName = sessions.find(s => s.id === record.session_id)?.name || record.session_id;
               return <SubmissionCard key={record.id} record={{...record, sessionName}} />
             })}
-            <div className="flex flex-col gap-3 rounded-md border border-[--border] bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-[--muted]">Showing page {page}. {hasMore ? "More submissions are available." : "End of submissions."}</p>
-              <div className="flex items-center gap-2">
+            <div className="search-page__pagination">
+              <p className="search-page__pagination-text">Showing page {page}. {hasMore ? "More submissions are available." : "End of submissions."}</p>
+              <div className="search-page__pagination-actions">
                 <Button variant="secondary" size="sm" disabled={page === 1 || isLoading} onClick={() => loadRecords(filters, page - 1)}>
                   Previous
                 </Button>
