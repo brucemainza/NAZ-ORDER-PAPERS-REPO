@@ -18,19 +18,19 @@ export function Modal({ isOpen, onClose, title, description, children, footer })
     if (!isOpen) {
         return null;
     }
-    return (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-4">
-      <div aria-modal="true" role="dialog" className="w-full max-w-xl rounded-md border border-[--border] bg-white shadow-sm">
-        <div className="flex items-start justify-between border-b border-[--border] px-5 py-4">
+    return (<div className="ui-modal">
+      <div aria-modal="true" role="dialog" className="ui-modal__dialog">
+        <div className="ui-modal__header">
           <div>
-            <h2 className="text-base font-medium text-[--black]">{title}</h2>
-            {description ? <p className="mt-1 text-sm text-[--muted]">{description}</p> : null}
+            <h2 className="ui-modal__title">{title}</h2>
+            {description ? <p className="ui-modal__description">{description}</p> : null}
           </div>
           <Button aria-label="Close modal" variant="ghost" size="sm" onClick={onClose}>
-            <X className="h-4 w-4"/>
+            <X className="ui-modal__close-icon"/>
           </Button>
         </div>
-        <div className="px-5 py-4">{children}</div>
-        {footer ? <div className="flex items-center justify-end gap-3 border-t border-[--border] px-5 py-4">{footer}</div> : null}
+        <div className="ui-modal__body">{children}</div>
+        {footer ? <div className="ui-modal__footer">{footer}</div> : null}
       </div>
     </div>);
 }
