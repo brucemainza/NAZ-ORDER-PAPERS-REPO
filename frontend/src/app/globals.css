@@ -291,6 +291,19 @@
     color: var(--danger);
   }
 
+  .ui-spinner {
+    display: inline-block;
+    border: 2px solid var(--primary-light);
+    border-top-color: var(--primary);
+    border-radius: 9999px;
+    animation: ui-spinner-rotate 1s linear infinite;
+  }
+
+  .ui-spinner--sm {
+    width: 1rem;
+    height: 1rem;
+  }
+
   .panel {
     @apply rounded-md border border-[--border] bg-[--surface] shadow-sm;
   }
@@ -308,5 +321,11 @@
 
   .table-stripes tbody tr:nth-child(even) {
     background: var(--surface);
+  }
+}
+
+@keyframes ui-spinner-rotate {
+  to {
+    transform: rotate(360deg);
   }
 }

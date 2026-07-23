@@ -15,7 +15,7 @@ async function login(page) {
 
 async function settle(page) {
   await page.waitForLoadState("networkidle");
-  await expect(page.locator('[aria-hidden="true"].animate-spin')).toHaveCount(0, {
+  await expect(page.locator('[aria-hidden="true"].ui-spinner')).toHaveCount(0, {
     timeout: 30_000,
   });
 }
