@@ -9,7 +9,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
 import { Table } from "@/components/ui/Table";
 import { useAuth } from "@/hooks/useAuth";
-import { hasAdminAccess } from "@/lib/auth";
+import { hasPermission } from "@/lib/auth";
 import { mockUsers } from "@/lib/mockData";
 import { formatDateTime } from "@/lib/utils";
 export default function UsersPage() {
@@ -35,7 +35,7 @@ export default function UsersPage() {
         {
             key: "actions",
             header: "Actions",
-            render: () => (<div className="flex gap-2">
+            render: () => (<div className="users-page__actions">
           <Button variant="secondary" size="sm">
             Edit Role
           </Button>
@@ -45,10 +45,10 @@ export default function UsersPage() {
         </div>),
         },
     ];
-    if (!isLoading && !hasAdminAccess(user === null || user === void 0 ? void 0 : user.role)) {
+    if (!isLoading && !hasPermission(user, "manage_users")) {
         return (<div>
         <PageHeader title="Users" description="Manage internal user accounts, roles and access status."/>
-        <EmptyState title="Access denied" description="Only administrators can manage user accounts in this portal."/>
+        <EmptyState title="Access denied" description="You do not have permission to manage user accounts."/>
       </div>);
     }
     return (<div>
@@ -76,7 +76,7 @@ export default function UsersPage() {
               Save User
             </Button>
           </>}>
-        <div className="grid gap-4">
+        <div className="users-page__form">
           <Input label="Full Name" value={formValues.name} onChange={(event) => setFormValues((current) => ({ ...current, name: event.target.value }))}/>
           <Input label="Employee ID" value={formValues.employeeId} onChange={(event) => setFormValues((current) => ({ ...current, employeeId: event.target.value }))}/>
           <Select label="Role" value={formValues.role} onChange={(event) => setFormValues((current) => ({ ...current, role: event.target.value }))}>

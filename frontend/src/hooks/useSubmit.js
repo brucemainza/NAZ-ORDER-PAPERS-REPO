@@ -1,38 +1,41 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { buildSimilarityResultsForSubmission } from "@/lib/mockData";
-const LOCAL_SUBMISSIONS_KEY = "naz-local-submissions";
-const LOCAL_MATCHES_KEY = "naz-local-matches";
+
 export function useSubmit() {
     const router = useRouter();
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const submitSubmission = async (values, submittedBy) => {
-        var _a, _b;
+    const [error, setError] = useState(null);
+    const submitSubmission = async (values) => {
         setIsSubmitting(true);
-        const id = `sub-local-${Date.now()}`;
-        const createdSubmission = {
-            ...values,
-            id,
-            submittedAt: new Date().toISOString(),
-            submittedBy,
-            status: "Pending",
-        };
-        const matches = buildSimilarityResultsForSubmission(createdSubmission);
-        if (typeof window !== "undefined") {
-            const storedSubmissions = JSON.parse((_a = window.localStorage.getItem(LOCAL_SUBMISSIONS_KEY)) !== null && _a !== void 0 ? _a : "[]");
-            const storedMatches = JSON.parse((_b = window.localStorage.getItem(LOCAL_MATCHES_KEY)) !== null && _b !== void 0 ? _b : "{}");
-            window.localStorage.setItem(LOCAL_SUBMISSIONS_KEY, JSON.stringify([createdSubmission, ...storedSubmissions]));
-            window.localStorage.setItem(LOCAL_MATCHES_KEY, JSON.stringify({
-                ...storedMatches,
-                [id]: matches,
-            }));
+        setError(null);
+        try {
+            const response = await fetch("/api/submissions", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    item_type: values.type,
+                    session_id: values.sessionId,
+                    member: values.member,
+                    ministry: values.ministry || null,
+                    answer_type: values.answerType,
+                    subject: values.subject,
+                    full_text: values.fullText,
+                }),
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.message || "Submission failed");
+            }
+            router.push(`/results/${data.record.id}`);
+        } catch (err) {
+            setError(err.message || "Submission failed");
+        } finally {
+            setIsSubmitting(false);
         }
-        await new Promise((resolve) => setTimeout(resolve, 900));
-        setIsSubmitting(false);
-        router.push(`/results/${id}`);
     };
     return {
+        error,
         isSubmitting,
         submitSubmission,
     };

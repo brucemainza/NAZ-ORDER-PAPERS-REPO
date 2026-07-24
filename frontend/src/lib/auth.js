@@ -26,6 +26,6 @@ export function getAuthCookieOptions() {
     };
 }
 
-export function hasAdminAccess(role) {
-    return role === "Admin";
+export function hasPermission(user, permission) {
+    return user?.permissions?.includes(permission) ?? false;
 }

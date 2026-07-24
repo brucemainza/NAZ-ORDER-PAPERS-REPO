@@ -8,7 +8,6 @@ import { Select } from "@/components/ui/Select";
 import { Spinner } from "@/components/ui/Spinner";
 import { Textarea } from "@/components/ui/Textarea";
 import { Toast } from "@/components/ui/Toast";
-import { useAuth } from "@/hooks/useAuth";
 import { useSubmit } from "@/hooks/useSubmit";
 const submitSchema = z
     .object({
@@ -16,6 +15,7 @@ const submitSchema = z
     sessionId: z.string().min(1, "Please select a parliamentary session"),
     member: z.string().min(3, "Member of Parliament is required"),
     ministry: z.string().optional(),
+    answerType: z.enum(["Oral", "Written"]),
     subject: z.string().min(5, "Subject is required"),
     fullText: z.string().min(40, "Full text should provide enough detail for retrieval"),
 })
@@ -29,40 +29,40 @@ const submitSchema = z
         });
     }
 });
-export function SubmitForm({ sessions }) {
+export function SubmitForm({ sessions, itemTypes }) {
     var _a, _b, _c, _d, _e, _f, _g;
-    const { user } = useAuth();
-    const { isSubmitting, submitSubmission } = useSubmit();
+    const { error, isSubmitting, submitSubmission } = useSubmit();
     const { register, handleSubmit, watch, formState: { errors }, } = useForm({
         resolver: zodResolver(submitSchema),
         defaultValues: {
-            type: "Question",
+            type: itemTypes[0],
             sessionId: (_b = (_a = sessions.find((session) => session.status === "Active")) === null || _a === void 0 ? void 0 : _a.id) !== null && _b !== void 0 ? _b : "",
             member: "",
             ministry: "",
+            answerType: "Oral",
             subject: "",
             fullText: "",
         },
     });
     const selectedType = watch("type");
     const onSubmit = async (values) => {
-        var _a;
         await submitSubmission({
             type: values.type,
             sessionId: values.sessionId,
             member: values.member,
             ministry: values.type === "Question" ? values.ministry : undefined,
+            answerType: values.type === "Question" ? values.answerType : undefined,
             subject: values.subject,
             fullText: values.fullText,
-        }, (_a = user === null || user === void 0 ? void 0 : user.name) !== null && _a !== void 0 ? _a : "Authenticated Clerk");
+        });
     };
-    return (<div className="space-y-5 rounded-md border border-[--border] bg-white p-6 shadow-sm">
-      <div className="grid gap-5 md:grid-cols-2">
-        <fieldset className="space-y-2">
-          <legend className="text-sm font-medium text-[--black]">Item Type</legend>
-          <div className="grid grid-cols-2 gap-3">
-            {["Question", "Motion"].map((option) => (<label key={option} className="flex cursor-pointer items-center gap-2 rounded-md border border-[--border] bg-[--bg] px-3 py-2 text-sm text-[--black]">
-                <input type="radio" value={option} className="h-4 w-4 accent-[--primary]" {...register("type")}/>
+    return (<div className="submit-form">
+      <div className="submit-form__grid">
+        <fieldset className="submit-form__type">
+          <legend className="submit-form__legend">Item Type</legend>
+          <div className="submit-form__type-options">
+            {itemTypes.map((option) => (<label key={option} className="submit-form__type-option">
+                <input type="radio" value={option} className="submit-form__radio" {...register("type")}/>
                 <span>{option}</span>
               </label>))}
           </div>
@@ -77,22 +77,29 @@ export function SubmitForm({ sessions }) {
 
         <Input id="member" label="Member of Parliament" placeholder="Hon. Example Member" error={(_d = errors.member) === null || _d === void 0 ? void 0 : _d.message} {...register("member")}/>
 
-        {selectedType === "Question" ? (<Input id="ministry" label="Ministry / Department" placeholder="Ministry of Health" error={(_e = errors.ministry) === null || _e === void 0 ? void 0 : _e.message} {...register("ministry")}/>) : (<div className="rounded-md border border-dashed border-[--border] bg-[--bg] px-4 py-3 text-sm text-[--muted]">
+        {selectedType === "Question" ? (<>
+          <Select id="answerType" label="Answer Type" error={errors.answerType?.message} {...register("answerType")}>
+            <option value="Oral">Oral answer</option>
+            <option value="Written">Written answer</option>
+          </Select>
+          <Input id="ministry" label="Ministry / Department" placeholder="Ministry of Health" error={(_e = errors.ministry) === null || _e === void 0 ? void 0 : _e.message} {...register("ministry")}/>
+        </>) : (<div className="submit-form__motion-note">
             Ministry field is not required for motions.
           </div>)}
 
-        <div className="md:col-span-2">
+        <div className="submit-form__wide">
           <Input id="subject" label="Subject" placeholder="Short, descriptive subject line" error={(_f = errors.subject) === null || _f === void 0 ? void 0 : _f.message} {...register("subject")}/>
         </div>
 
-        <div className="md:col-span-2">
+        <div className="submit-form__wide">
           <Textarea id="fullText" label="Full Text" placeholder="Enter the full parliamentary question or motion body." error={(_g = errors.fullText) === null || _g === void 0 ? void 0 : _g.message} {...register("fullText")}/>
         </div>
       </div>
 
       <Toast variant="info" title="Similarity review will run automatically" description="The submission will be checked against historical records before you land on the result review screen."/>
+      {error ? <Toast variant="error" title="Submission failed" description={error}/> : null}
 
-      <div className="flex justify-end">
+      <div className="submit-form__actions">
         <Button onClick={handleSubmit(onSubmit)} disabled={isSubmitting}>
           {isSubmitting ? (<>
               <Spinner />

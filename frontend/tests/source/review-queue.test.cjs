@@ -1,0 +1,17 @@
+const assert = require("node:assert/strict");
+const { existsSync, readFileSync } = require("node:fs");
+const { join } = require("node:path");
+const test = require("node:test");
+
+const projectRoot = process.cwd();
+
+test("frontend exposes the permission-protected review queue API", () => {
+  const routePath = join(
+    projectRoot,
+    "src/app/api/submissions/review-queue/route.js",
+  );
+
+  assert.equal(existsSync(routePath), true);
+  const route = readFileSync(routePath, "utf8");
+  assert.match(route, /proxyJson\("\/submissions\/review-queue"\)/);
+});

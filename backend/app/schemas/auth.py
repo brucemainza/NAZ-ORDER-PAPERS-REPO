@@ -15,6 +15,8 @@ class UserOut(BaseModel):
     employeeId: str
     name: str
     role: str
+    roles: list[str]
+    permissions: list[str]
     status: str
     lastLogin: Optional[str] = None
 
