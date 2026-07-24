@@ -15,6 +15,7 @@ class SubmissionCreate(BaseModel):
     answer_type: Literal["Oral", "Written"] | None = None
     subject: str = Field(min_length=5, max_length=500)
     full_text: str = Field(min_length=40)
+    confirm_duplicate: bool = False
 
     @field_validator("member", "ministry", "subject", "full_text", mode="before")
     @classmethod

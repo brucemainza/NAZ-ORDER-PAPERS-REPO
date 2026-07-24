@@ -14,6 +14,16 @@ from app.schemas.submission import (
     SubmissionRecordOut,
     SubmissionResponse,
 )
+from app.similarity.dependencies import (
+    get_duplicate_checker,
+    get_embedding_generator,
+)
+from app.similarity.duplicate_detection import (
+    DUPLICATE_SIMILARITY_THRESHOLD,
+    DuplicateChecker,
+    build_similarity_text,
+)
+from app.similarity.embeddings import EmbeddingGenerator
 from app.services.similarity import find_previously_addressed_candidates
 from app.services.submission_status import (
     InvalidStatusTransition,
@@ -60,6 +70,8 @@ def create_submission(
     request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    duplicate_checker: DuplicateChecker = Depends(get_duplicate_checker),
+    embedding_generator: EmbeddingGenerator = Depends(get_embedding_generator),
 ) -> SubmissionResponse:
     if submission.item_type == "Question" and not user.has_permission("submit_question"):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
@@ -74,6 +86,28 @@ def create_submission(
     if session.status not in {"Active", "Upcoming"}:
         raise HTTPException(status_code=400, detail="Submissions can only be added to active or upcoming sessions")
 
+    duplicate_result = duplicate_checker.check(
+        subject=submission.subject,
+        full_text=submission.full_text,
+        item_type=submission.item_type,
+    )
+    if duplicate_result.is_duplicate and not submission.confirm_duplicate:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "possible_duplicate",
+                "threshold": DUPLICATE_SIMILARITY_THRESHOLD,
+                "matches": [
+                    {
+                        "source_id": str(match.source_id),
+                        "score": match.score,
+                        "match_type": match.match_type,
+                    }
+                    for match in duplicate_result.matches
+                ],
+            },
+        )
+
     record = ParliamentaryRecord(
         item_type=submission.item_type,
         session_id=submission.session_id,
@@ -84,6 +118,9 @@ def create_submission(
         full_text=submission.full_text.strip(),
         status=SubmissionStatus.SUBMITTED.value,
         submitted_by=user.id,
+        embedding=embedding_generator.embed(
+            build_similarity_text(submission.subject, submission.full_text)
+        ),
     )
     transition_submission(record, SubmissionStatus.UNDER_REVIEW)
     db.add(record)
