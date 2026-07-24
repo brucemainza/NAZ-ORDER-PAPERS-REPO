@@ -223,4 +223,5 @@ def test_similarity_check_api_returns_well_formed_zero_matches(
         "possible_duplicate": False,
         "threshold": 0.95,
         "matches": [],
+        "previously_addressed": [],
     }

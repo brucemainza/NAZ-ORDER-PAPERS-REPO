@@ -13,6 +13,10 @@ from app.similarity.presentation import (
     DatabaseSimilarityResultFormatter,
     SimilarityResultFormatter,
 )
+from app.similarity.previously_addressed import (
+    PreviouslyAddressedChecker,
+    PreviouslyAddressedService,
+)
 
 
 def get_embedding_generator() -> EmbeddingGenerator:
@@ -37,3 +41,10 @@ def get_similarity_result_formatter(
     db: Session = Depends(get_db),
 ) -> SimilarityResultFormatter:
     return DatabaseSimilarityResultFormatter(db)
+
+
+def get_previously_addressed_checker(
+    db: Session = Depends(get_db),
+    similarity_backend: SimilarityBackend = Depends(get_similarity_backend),
+) -> PreviouslyAddressedChecker:
+    return PreviouslyAddressedService(db, similarity_backend)

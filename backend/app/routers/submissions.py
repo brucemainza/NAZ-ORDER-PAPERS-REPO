@@ -21,15 +21,18 @@ from app.schemas.submission import (
 from app.similarity.dependencies import (
     get_duplicate_checker,
     get_embedding_generator,
+    get_previously_addressed_checker,
     get_similarity_result_formatter,
 )
 from app.similarity.duplicate_detection import (
     DUPLICATE_SIMILARITY_THRESHOLD,
     DuplicateChecker,
+    DuplicateMatch,
     build_similarity_text,
 )
 from app.similarity.embeddings import EmbeddingGenerator
 from app.similarity.presentation import SimilarityResultFormatter
+from app.similarity.previously_addressed import PreviouslyAddressedChecker
 from app.services.similarity import find_previously_addressed_candidates
 from app.services.submission_status import (
     InvalidStatusTransition,
@@ -78,6 +81,9 @@ def check_submission_similarity(
     check: SimilarityCheckRequest,
     user: User = Depends(get_current_user),
     duplicate_checker: DuplicateChecker = Depends(get_duplicate_checker),
+    addressed_checker: PreviouslyAddressedChecker = Depends(
+        get_previously_addressed_checker
+    ),
     result_formatter: SimilarityResultFormatter = Depends(
         get_similarity_result_formatter
     ),
@@ -95,10 +101,29 @@ def check_submission_similarity(
         full_text=check.full_text,
         item_type=check.item_type,
     )
+    addressed_matches = []
+    if check.session_id is not None:
+        addressed_result = addressed_checker.check(
+            subject=check.subject,
+            full_text=check.full_text,
+            item_type=check.item_type,
+            current_session_id=check.session_id,
+        )
+        addressed_matches = result_formatter.format(
+            [
+                DuplicateMatch(
+                    source_id=match.source_id,
+                    score=match.score,
+                    match_type="previously_addressed",
+                )
+                for match in addressed_result.matches
+            ]
+        )
     return SimilarityCheckResponse(
         possible_duplicate=result.is_duplicate,
         threshold=DUPLICATE_SIMILARITY_THRESHOLD,
         matches=result_formatter.format(result.matches),
+        previously_addressed=addressed_matches,
     )
 
 
@@ -109,6 +134,9 @@ def create_submission(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     duplicate_checker: DuplicateChecker = Depends(get_duplicate_checker),
+    addressed_checker: PreviouslyAddressedChecker = Depends(
+        get_previously_addressed_checker
+    ),
     embedding_generator: EmbeddingGenerator = Depends(get_embedding_generator),
     result_formatter: SimilarityResultFormatter = Depends(
         get_similarity_result_formatter
@@ -132,11 +160,28 @@ def create_submission(
         full_text=submission.full_text,
         item_type=submission.item_type,
     )
+    addressed_result = addressed_checker.check(
+        subject=submission.subject,
+        full_text=submission.full_text,
+        item_type=submission.item_type,
+        current_session_id=submission.session_id,
+    )
+    addressed_matches = result_formatter.format(
+        [
+            DuplicateMatch(
+                source_id=match.source_id,
+                score=match.score,
+                match_type="previously_addressed",
+            )
+            for match in addressed_result.matches
+        ]
+    )
     if duplicate_result.is_duplicate and not submission.confirm_duplicate:
         check_response = SimilarityCheckResponse(
             possible_duplicate=True,
             threshold=DUPLICATE_SIMILARITY_THRESHOLD,
             matches=result_formatter.format(duplicate_result.matches),
+            previously_addressed=addressed_matches,
         )
         raise HTTPException(
             status_code=409,
@@ -187,6 +232,7 @@ def create_submission(
             )
             for index, match in enumerate(candidates)
         ],
+        previously_addressed=addressed_matches,
     )
 
 

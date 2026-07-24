@@ -176,7 +176,7 @@ class ParliamentaryRecord(Base):
     __table_args__ = (
         CheckConstraint(
             "status IN ('Draft', 'Submitted', 'Under Review', 'Approved', "
-            "'Rejected', 'Scheduled', 'Archived')",
+            "'Rejected', 'Scheduled', 'Answered', 'Discussed', 'Archived')",
             name="parliamentary_records_status_check",
         ),
     )

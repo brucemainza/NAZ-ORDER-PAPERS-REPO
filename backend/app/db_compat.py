@@ -55,7 +55,7 @@ def ensure_runtime_schema() -> None:
         SET status = CASE
             WHEN status IN (
                 'Draft', 'Submitted', 'Under Review', 'Approved',
-                'Rejected', 'Scheduled', 'Archived'
+                'Rejected', 'Scheduled', 'Answered', 'Discussed', 'Archived'
             ) THEN status
             WHEN status IN ('Pending', 'Pending Review') THEN 'Under Review'
             WHEN status IN ('Clear', 'Clear (New)', 'Reviewed') THEN 'Approved'
@@ -64,13 +64,22 @@ def ensure_runtime_schema() -> None:
         END
         WHERE status NOT IN (
             'Draft', 'Submitted', 'Under Review', 'Approved',
-            'Rejected', 'Scheduled', 'Archived'
+            'Rejected', 'Scheduled', 'Answered', 'Discussed', 'Archived'
         )
         """,
         "ALTER TABLE parliamentary_records ALTER COLUMN status SET DEFAULT 'Draft'",
         """
         DO $$
         BEGIN
+            IF EXISTS (
+                SELECT 1
+                FROM pg_constraint
+                WHERE conname = 'parliamentary_records_status_check'
+                  AND pg_get_constraintdef(oid) NOT LIKE '%Answered%'
+            ) THEN
+                ALTER TABLE parliamentary_records
+                DROP CONSTRAINT parliamentary_records_status_check;
+            END IF;
             IF NOT EXISTS (
                 SELECT 1
                 FROM pg_constraint
@@ -81,7 +90,8 @@ def ensure_runtime_schema() -> None:
                 CHECK (
                     status IN (
                         'Draft', 'Submitted', 'Under Review', 'Approved',
-                        'Rejected', 'Scheduled', 'Archived'
+                        'Rejected', 'Scheduled', 'Answered', 'Discussed',
+                        'Archived'
                     )
                 );
             END IF;

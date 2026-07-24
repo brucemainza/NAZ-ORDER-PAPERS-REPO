@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 class SimilarityCheckRequest(BaseModel):
     item_type: Literal["Question", "Motion"]
+    session_id: UUID | None = None
     subject: str = Field(min_length=5, max_length=500)
     full_text: str = Field(min_length=40)
 
@@ -33,3 +34,4 @@ class SimilarityCheckResponse(BaseModel):
     possible_duplicate: bool
     threshold: float
     matches: list[SimilarityMatchOut]
+    previously_addressed: list[SimilarityMatchOut] = Field(default_factory=list)

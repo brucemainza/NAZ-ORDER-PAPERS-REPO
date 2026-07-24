@@ -21,6 +21,8 @@ def test_supported_status_enum_is_exact():
         "Approved",
         "Rejected",
         "Scheduled",
+        "Answered",
+        "Discussed",
         "Archived",
     }
 
@@ -46,7 +48,13 @@ def test_status_state_machine_has_expected_transitions():
             SubmissionStatus.ARCHIVED,
         },
         SubmissionStatus.REJECTED: {SubmissionStatus.ARCHIVED},
-        SubmissionStatus.SCHEDULED: {SubmissionStatus.ARCHIVED},
+        SubmissionStatus.SCHEDULED: {
+            SubmissionStatus.ANSWERED,
+            SubmissionStatus.DISCUSSED,
+            SubmissionStatus.ARCHIVED,
+        },
+        SubmissionStatus.ANSWERED: {SubmissionStatus.ARCHIVED},
+        SubmissionStatus.DISCUSSED: {SubmissionStatus.ARCHIVED},
         SubmissionStatus.ARCHIVED: set(),
     }
 

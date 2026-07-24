@@ -8,6 +8,8 @@ class SubmissionStatus(StrEnum):
     APPROVED = "Approved"
     REJECTED = "Rejected"
     SCHEDULED = "Scheduled"
+    ANSWERED = "Answered"
+    DISCUSSED = "Discussed"
     ARCHIVED = "Archived"
 
 
@@ -31,7 +33,13 @@ ALLOWED_TRANSITIONS = {
         SubmissionStatus.ARCHIVED,
     },
     SubmissionStatus.REJECTED: {SubmissionStatus.ARCHIVED},
-    SubmissionStatus.SCHEDULED: {SubmissionStatus.ARCHIVED},
+    SubmissionStatus.SCHEDULED: {
+        SubmissionStatus.ANSWERED,
+        SubmissionStatus.DISCUSSED,
+        SubmissionStatus.ARCHIVED,
+    },
+    SubmissionStatus.ANSWERED: {SubmissionStatus.ARCHIVED},
+    SubmissionStatus.DISCUSSED: {SubmissionStatus.ARCHIVED},
     SubmissionStatus.ARCHIVED: set(),
 }
 

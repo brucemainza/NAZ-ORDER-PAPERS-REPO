@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.search import SearchResultOut
+from app.schemas.similarity import SimilarityMatchOut
 
 
 class SubmissionCreate(BaseModel):
@@ -76,3 +77,4 @@ class SubmissionRecordOut(BaseModel):
 class SubmissionResponse(BaseModel):
     record: SubmissionRecordOut
     candidates: list[SearchResultOut]
+    previously_addressed: list[SimilarityMatchOut] = Field(default_factory=list)
