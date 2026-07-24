@@ -9,6 +9,10 @@ from app.similarity.duplicate_detection import (
 )
 from app.similarity.embeddings import EmbeddingGenerator, TokenHashEmbeddingGenerator
 from app.similarity.pgvector_backend import PgVectorSimilarityBackend
+from app.similarity.presentation import (
+    DatabaseSimilarityResultFormatter,
+    SimilarityResultFormatter,
+)
 
 
 def get_embedding_generator() -> EmbeddingGenerator:
@@ -27,3 +31,9 @@ def get_duplicate_checker(
     similarity_backend: SimilarityBackend = Depends(get_similarity_backend),
 ) -> DuplicateChecker:
     return DuplicateDetectionService(db, similarity_backend)
+
+
+def get_similarity_result_formatter(
+    db: Session = Depends(get_db),
+) -> SimilarityResultFormatter:
+    return DatabaseSimilarityResultFormatter(db)

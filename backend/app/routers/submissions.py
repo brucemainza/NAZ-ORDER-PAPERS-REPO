@@ -8,6 +8,10 @@ from app.database import get_db
 from app.deps import add_audit_log, get_current_user, request_ip, require_permission
 from app.models import ParliamentaryRecord, ParliamentarySession, User
 from app.schemas.search import SearchResultOut
+from app.schemas.similarity import (
+    SimilarityCheckRequest,
+    SimilarityCheckResponse,
+)
 from app.schemas.submission import (
     SubmissionCreate,
     SubmissionDraftUpdate,
@@ -17,6 +21,7 @@ from app.schemas.submission import (
 from app.similarity.dependencies import (
     get_duplicate_checker,
     get_embedding_generator,
+    get_similarity_result_formatter,
 )
 from app.similarity.duplicate_detection import (
     DUPLICATE_SIMILARITY_THRESHOLD,
@@ -24,6 +29,7 @@ from app.similarity.duplicate_detection import (
     build_similarity_text,
 )
 from app.similarity.embeddings import EmbeddingGenerator
+from app.similarity.presentation import SimilarityResultFormatter
 from app.services.similarity import find_previously_addressed_candidates
 from app.services.submission_status import (
     InvalidStatusTransition,
@@ -64,6 +70,38 @@ def review_queue(
     )
 
 
+@router.post(
+    "/check-similarity",
+    response_model=SimilarityCheckResponse,
+)
+def check_submission_similarity(
+    check: SimilarityCheckRequest,
+    user: User = Depends(get_current_user),
+    duplicate_checker: DuplicateChecker = Depends(get_duplicate_checker),
+    result_formatter: SimilarityResultFormatter = Depends(
+        get_similarity_result_formatter
+    ),
+) -> SimilarityCheckResponse:
+    required_permission = (
+        "submit_question"
+        if check.item_type == "Question"
+        else "submit_motion"
+    )
+    if not user.has_permission(required_permission):
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    result = duplicate_checker.check(
+        subject=check.subject,
+        full_text=check.full_text,
+        item_type=check.item_type,
+    )
+    return SimilarityCheckResponse(
+        possible_duplicate=result.is_duplicate,
+        threshold=DUPLICATE_SIMILARITY_THRESHOLD,
+        matches=result_formatter.format(result.matches),
+    )
+
+
 @router.post("", response_model=SubmissionResponse, status_code=201)
 def create_submission(
     submission: SubmissionCreate,
@@ -72,6 +110,9 @@ def create_submission(
     user: User = Depends(get_current_user),
     duplicate_checker: DuplicateChecker = Depends(get_duplicate_checker),
     embedding_generator: EmbeddingGenerator = Depends(get_embedding_generator),
+    result_formatter: SimilarityResultFormatter = Depends(
+        get_similarity_result_formatter
+    ),
 ) -> SubmissionResponse:
     if submission.item_type == "Question" and not user.has_permission("submit_question"):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
@@ -92,19 +133,16 @@ def create_submission(
         item_type=submission.item_type,
     )
     if duplicate_result.is_duplicate and not submission.confirm_duplicate:
+        check_response = SimilarityCheckResponse(
+            possible_duplicate=True,
+            threshold=DUPLICATE_SIMILARITY_THRESHOLD,
+            matches=result_formatter.format(duplicate_result.matches),
+        )
         raise HTTPException(
             status_code=409,
             detail={
                 "code": "possible_duplicate",
-                "threshold": DUPLICATE_SIMILARITY_THRESHOLD,
-                "matches": [
-                    {
-                        "source_id": str(match.source_id),
-                        "score": match.score,
-                        "match_type": match.match_type,
-                    }
-                    for match in duplicate_result.matches
-                ],
+                **check_response.model_dump(mode="json"),
             },
         )
 
