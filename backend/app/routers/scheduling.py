@@ -1,11 +1,14 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import add_audit_log, request_ip, require_permission
 from app.models import ParliamentaryRecord, User
+from app.notifications.dependencies import get_status_change_notifier
+from app.notifications.service import StatusChangeNotifier
+from app.notifications.tasks import enqueue_status_change_notification
 from app.schemas.submission import SubmissionRecordOut, SubmissionSchedule
 from app.services.submission_status import (
     InvalidStatusTransition,
@@ -24,13 +27,16 @@ def schedule_submission(
     record_id: UUID,
     schedule: SubmissionSchedule,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     scheduler: User = Depends(require_permission("schedule_item")),
+    notifier: StatusChangeNotifier = Depends(get_status_change_notifier),
 ) -> ParliamentaryRecord:
     record = db.get(ParliamentaryRecord, record_id)
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
 
+    old_status = record.status
     try:
         transition_submission(record, SubmissionStatus.SCHEDULED)
     except InvalidStatusTransition as error:
@@ -48,4 +54,14 @@ def schedule_submission(
     )
     db.commit()
     db.refresh(record)
+    enqueue_status_change_notification(
+        background_tasks,
+        notifier,
+        recipient=record.submitter.email if record.submitter else None,
+        record_id=record.id,
+        item_type=record.item_type,
+        subject=record.subject,
+        old_status=old_status,
+        new_status=record.status,
+    )
     return record

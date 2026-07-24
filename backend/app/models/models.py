@@ -121,6 +121,7 @@ class User(Base):
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     employee_id: Mapped[str] = mapped_column(Text, unique=True)
     name: Mapped[str] = mapped_column(Text)
+    email: Mapped[Optional[str]] = mapped_column(Text)
     role: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(Text)
     password_hash: Mapped[Optional[str]] = mapped_column(Text)

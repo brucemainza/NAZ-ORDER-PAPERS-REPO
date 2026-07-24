@@ -56,6 +56,7 @@ def ensure_runtime_schema() -> None:
         )
         """,
         "ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS email text",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_login_attempts integer NOT NULL DEFAULT 0",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_at timestamptz",
         "ALTER TABLE parliamentary_records ADD COLUMN IF NOT EXISTS answer_type text",

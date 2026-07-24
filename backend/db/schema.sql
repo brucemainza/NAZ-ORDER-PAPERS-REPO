@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS users (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   employee_id text UNIQUE NOT NULL,
   name text NOT NULL,
+  email text,
   role text NOT NULL,
   status text NOT NULL CHECK (status IN ('Active', 'Inactive')),
   password_hash text,

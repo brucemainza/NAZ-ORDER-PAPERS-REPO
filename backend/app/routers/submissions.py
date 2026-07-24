@@ -1,12 +1,15 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import add_audit_log, get_current_user, request_ip, require_permission
 from app.models import ParliamentaryRecord, ParliamentarySession, User
+from app.notifications.dependencies import get_status_change_notifier
+from app.notifications.service import StatusChangeNotifier
+from app.notifications.tasks import enqueue_status_change_notification
 from app.schemas.search import SearchResultOut
 from app.schemas.similarity import (
     SimilarityCheckRequest,
@@ -244,8 +247,10 @@ def create_submission(
 def resubmit_draft(
     record_id: UUID,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    notifier: StatusChangeNotifier = Depends(get_status_change_notifier),
 ) -> ParliamentaryRecord:
     record = db.get(ParliamentaryRecord, record_id)
     if not record:
@@ -264,6 +269,7 @@ def resubmit_draft(
     if not user.has_permission(required_permission):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
+    old_status = record.status
     try:
         transition_submission(record, SubmissionStatus.SUBMITTED)
         transition_submission(record, SubmissionStatus.UNDER_REVIEW)
@@ -281,6 +287,16 @@ def resubmit_draft(
     )
     db.commit()
     db.refresh(record)
+    enqueue_status_change_notification(
+        background_tasks,
+        notifier,
+        recipient=record.submitter.email if record.submitter else None,
+        record_id=record.id,
+        item_type=record.item_type,
+        subject=record.subject,
+        old_status=old_status,
+        new_status=record.status,
+    )
     return record
 
 
