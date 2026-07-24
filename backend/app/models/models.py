@@ -54,6 +54,27 @@ user_roles = Table(
     ),
 )
 
+related_item_links = Table(
+    "related_item_links",
+    Base.metadata,
+    Column(
+        "record_id",
+        PostgresUUID(as_uuid=True),
+        ForeignKey("parliamentary_records.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column(
+        "related_record_id",
+        PostgresUUID(as_uuid=True),
+        ForeignKey("parliamentary_records.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    CheckConstraint(
+        "record_id <> related_record_id",
+        name="related_item_links_distinct_records",
+    ),
+)
+
 
 class Permission(Base):
     __tablename__ = "permissions"
@@ -200,6 +221,22 @@ class ParliamentaryRecord(Base):
 
     session: Mapped["ParliamentarySession"] = relationship(back_populates="records")
     submitter: Mapped[Optional["User"]] = relationship()
+    related_items: Mapped[List["ParliamentaryRecord"]] = relationship(
+        "ParliamentaryRecord",
+        secondary=related_item_links,
+        primaryjoin=id == related_item_links.c.record_id,
+        secondaryjoin=id == related_item_links.c.related_record_id,
+        back_populates="referenced_by_items",
+        order_by="ParliamentaryRecord.created_at",
+    )
+    referenced_by_items: Mapped[List["ParliamentaryRecord"]] = relationship(
+        "ParliamentaryRecord",
+        secondary=related_item_links,
+        primaryjoin=id == related_item_links.c.related_record_id,
+        secondaryjoin=id == related_item_links.c.record_id,
+        back_populates="related_items",
+        order_by="ParliamentaryRecord.created_at",
+    )
 
 
 class SearchLog(Base):

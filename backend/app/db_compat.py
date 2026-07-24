@@ -44,6 +44,17 @@ def ensure_runtime_schema() -> None:
             created_at timestamptz NOT NULL DEFAULT now()
         )
         """,
+        """
+        CREATE TABLE IF NOT EXISTS related_item_links (
+            record_id uuid NOT NULL
+                REFERENCES parliamentary_records(id) ON DELETE CASCADE,
+            related_record_id uuid NOT NULL
+                REFERENCES parliamentary_records(id) ON DELETE CASCADE,
+            PRIMARY KEY (record_id, related_record_id),
+            CONSTRAINT related_item_links_distinct_records
+                CHECK (record_id <> related_record_id)
+        )
+        """,
         "ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_login_attempts integer NOT NULL DEFAULT 0",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_at timestamptz",

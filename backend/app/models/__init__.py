@@ -9,6 +9,7 @@ from .models import (
     User,
     UserSession,
     WorkflowDecision,
+    related_item_links,
     role_permissions,
     user_roles,
 )

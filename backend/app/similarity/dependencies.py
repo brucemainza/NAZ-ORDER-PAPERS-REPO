@@ -17,6 +17,10 @@ from app.similarity.previously_addressed import (
     PreviouslyAddressedChecker,
     PreviouslyAddressedService,
 )
+from app.similarity.related_items import (
+    RelatedItemLinker,
+    RelatedItemLinkService,
+)
 
 
 def get_embedding_generator() -> EmbeddingGenerator:
@@ -48,3 +52,9 @@ def get_previously_addressed_checker(
     similarity_backend: SimilarityBackend = Depends(get_similarity_backend),
 ) -> PreviouslyAddressedChecker:
     return PreviouslyAddressedService(db, similarity_backend)
+
+
+def get_related_item_linker(
+    db: Session = Depends(get_db),
+) -> RelatedItemLinker:
+    return RelatedItemLinkService(db)

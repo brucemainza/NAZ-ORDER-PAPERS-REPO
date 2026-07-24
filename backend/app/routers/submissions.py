@@ -22,6 +22,7 @@ from app.similarity.dependencies import (
     get_duplicate_checker,
     get_embedding_generator,
     get_previously_addressed_checker,
+    get_related_item_linker,
     get_similarity_result_formatter,
 )
 from app.similarity.duplicate_detection import (
@@ -33,6 +34,7 @@ from app.similarity.duplicate_detection import (
 from app.similarity.embeddings import EmbeddingGenerator
 from app.similarity.presentation import SimilarityResultFormatter
 from app.similarity.previously_addressed import PreviouslyAddressedChecker
+from app.similarity.related_items import RelatedItemLinker
 from app.services.similarity import find_previously_addressed_candidates
 from app.services.submission_status import (
     InvalidStatusTransition,
@@ -137,6 +139,7 @@ def create_submission(
     addressed_checker: PreviouslyAddressedChecker = Depends(
         get_previously_addressed_checker
     ),
+    related_item_linker: RelatedItemLinker = Depends(get_related_item_linker),
     embedding_generator: EmbeddingGenerator = Depends(get_embedding_generator),
     result_formatter: SimilarityResultFormatter = Depends(
         get_similarity_result_formatter
@@ -208,6 +211,7 @@ def create_submission(
     transition_submission(record, SubmissionStatus.UNDER_REVIEW)
     db.add(record)
     db.flush()
+    related_item_linker.link(record, addressed_result.matches)
     add_audit_log(
         db,
         user_id=user.id,
