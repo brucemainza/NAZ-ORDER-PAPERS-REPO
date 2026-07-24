@@ -11,6 +11,7 @@ from app.routers import (
     order_papers,
     records,
     reports,
+    responses,
     reviews,
     search,
     scheduling,
@@ -47,6 +48,7 @@ app.include_router(submissions.router)
 app.include_router(reviews.router)
 app.include_router(audit.router)
 app.include_router(reports.router)
+app.include_router(responses.router)
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(workflow_reviews.router)

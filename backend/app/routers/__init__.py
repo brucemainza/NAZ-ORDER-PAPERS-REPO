@@ -4,6 +4,7 @@ from . import health
 from . import order_papers
 from . import records
 from . import reports
+from . import responses
 from . import reviews
 from . import search
 from . import scheduling

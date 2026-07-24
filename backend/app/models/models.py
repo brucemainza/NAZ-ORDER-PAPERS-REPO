@@ -238,6 +238,41 @@ class ParliamentaryRecord(Base):
         back_populates="related_items",
         order_by="ParliamentaryRecord.created_at",
     )
+    response: Mapped[Optional["QuestionResponse"]] = relationship(
+        back_populates="record",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
+
+
+class QuestionResponse(Base):
+    __tablename__ = "question_responses"
+
+    id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+    record_id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("parliamentary_records.id", ondelete="CASCADE"),
+        unique=True,
+    )
+    response_text: Mapped[str] = mapped_column(Text)
+    response_date: Mapped[date] = mapped_column(Date)
+    recorded_by: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("users.id"),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    record: Mapped["ParliamentaryRecord"] = relationship(
+        back_populates="response",
+    )
+    recorder: Mapped["User"] = relationship()
 
 
 class SearchLog(Base):

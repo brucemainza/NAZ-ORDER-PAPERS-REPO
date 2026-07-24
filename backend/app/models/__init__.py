@@ -3,6 +3,7 @@ from .models import (
     Permission,
     ParliamentaryRecord,
     ParliamentarySession,
+    QuestionResponse,
     Role,
     ReviewDecision,
     SearchLog,

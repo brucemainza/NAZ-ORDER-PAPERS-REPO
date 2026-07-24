@@ -8,6 +8,7 @@ VALUES
   ('reject_submission', 'Reject a submission after review'),
   ('request_changes', 'Return a submission to its owner for changes'),
   ('schedule_item', 'Schedule an approved item for a sitting'),
+  ('record_response', 'Record the House response to a scheduled question'),
   ('view_reports', 'View operational reports'),
   ('view_audit', 'View the system audit trail'),
   ('manage_users', 'Manage user accounts and account locks'),
@@ -32,7 +33,7 @@ JOIN permissions p ON (
   r.name = 'Administrator'
   OR (r.name = 'Clerk' AND p.code IN (
     'review_submission', 'approve_motion', 'reject_submission',
-    'request_changes', 'schedule_item', 'view_reports', 'view_audit',
+    'request_changes', 'schedule_item', 'record_response', 'view_reports', 'view_audit',
     'manage_sessions', 'search_archive', 'view_archive'
   ))
   OR (r.name = 'Member of Parliament' AND p.code IN (

@@ -73,6 +73,15 @@ CREATE TABLE IF NOT EXISTS related_item_links (
   CONSTRAINT related_item_links_distinct_records CHECK (record_id <> related_record_id)
 );
 
+CREATE TABLE IF NOT EXISTS question_responses (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  record_id uuid UNIQUE NOT NULL REFERENCES parliamentary_records(id) ON DELETE CASCADE,
+  response_text text NOT NULL,
+  response_date date NOT NULL,
+  recorded_by uuid NOT NULL REFERENCES users(id),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS search_logs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid REFERENCES users(id),

@@ -55,6 +55,17 @@ def ensure_runtime_schema() -> None:
                 CHECK (record_id <> related_record_id)
         )
         """,
+        """
+        CREATE TABLE IF NOT EXISTS question_responses (
+            id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            record_id uuid UNIQUE NOT NULL
+                REFERENCES parliamentary_records(id) ON DELETE CASCADE,
+            response_text text NOT NULL,
+            response_date date NOT NULL,
+            recorded_by uuid NOT NULL REFERENCES users(id),
+            created_at timestamptz NOT NULL DEFAULT now()
+        )
+        """,
         "ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS email text",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_login_attempts integer NOT NULL DEFAULT 0",
