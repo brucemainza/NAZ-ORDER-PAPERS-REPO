@@ -8,6 +8,7 @@ from . import responses
 from . import reviews
 from . import search
 from . import scheduling
+from . import session_reports
 from . import sessions
 from . import submissions
 from . import users

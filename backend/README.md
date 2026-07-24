@@ -48,6 +48,7 @@ API documentation:
 | `POST` | `/search` | Ranked BM25 keyword search. |
 | `GET` | `/order-papers/{date}` | Generate sitting Order Paper JSON. |
 | `GET` | `/reports` | Permission-protected aggregate reports. |
+| `GET` | `/reports/sessions/{session_id}` | JSON report of all questions and motions in one session. |
 | `GET` | `/audit` | Permission-protected audit trail. |
 
 See [the full API specification](../docs/system-specification.md#14-api-contract).
