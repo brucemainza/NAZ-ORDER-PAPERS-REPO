@@ -27,7 +27,11 @@ with psycopg.connect(
 from app.database import Base, engine, get_db  # noqa: E402
 from app.main import app  # noqa: E402
 from app import models as _models  # noqa: E402, F401
+from sqlalchemy import text  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
+
+with engine.begin() as connection:
+    connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
 
 
 @pytest.fixture(autouse=True)

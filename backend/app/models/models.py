@@ -15,6 +15,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import ARRAY, UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from pgvector.sqlalchemy import Vector
 
 from app.database import Base
 
@@ -194,6 +195,7 @@ class ParliamentaryRecord(Base):
         ForeignKey("users.id"),
     )
     sitting_date: Mapped[Optional[date]] = mapped_column(Date)
+    embedding: Mapped[Optional[list[float]]] = mapped_column(Vector(384))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     session: Mapped["ParliamentarySession"] = relationship(back_populates="records")
