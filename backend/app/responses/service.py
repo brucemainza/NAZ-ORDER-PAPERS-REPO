@@ -6,6 +6,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import ParliamentaryRecord, QuestionResponse
+from app.notifications.service import StatusChangeNotifier
+from app.notifications.tasks import (
+    TaskScheduler,
+    enqueue_status_change_notification,
+)
+from app.services.status_transition import StatusTransitioner
+from app.services.submission_status import SubmissionStatus
 
 
 class ResponseRecordNotFound(LookupError):
@@ -32,8 +39,18 @@ class ResponseRecorder(ABC):
 class ResponseRecordingService(ResponseRecorder):
     """Validates and persists response content without owning status policy."""
 
-    def __init__(self, db: Session) -> None:
+    def __init__(
+        self,
+        db: Session,
+        *,
+        status_transitioner: StatusTransitioner,
+        notifier: StatusChangeNotifier,
+        task_scheduler: TaskScheduler,
+    ) -> None:
         self._db = db
+        self._status_transitioner = status_transitioner
+        self._notifier = notifier
+        self._task_scheduler = task_scheduler
 
     def record_response(
         self,
@@ -71,5 +88,25 @@ class ResponseRecordingService(ResponseRecorder):
             recorded_by=recorded_by,
         )
         self._db.add(response)
-        self._db.flush()
+        old_status = record.status
+        try:
+            self._status_transitioner.transition(
+                record,
+                SubmissionStatus.ANSWERED,
+            )
+            self._db.flush()
+        except Exception:
+            self._db.rollback()
+            raise
+
+        enqueue_status_change_notification(
+            self._task_scheduler,
+            self._notifier,
+            recipient=record.submitter.email if record.submitter else None,
+            record_id=record.id,
+            item_type=record.item_type,
+            subject=record.subject,
+            old_status=old_status,
+            new_status=record.status,
+        )
         return response

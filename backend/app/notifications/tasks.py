@@ -1,12 +1,22 @@
 from uuid import UUID
-
-from fastapi import BackgroundTasks
+from collections.abc import Callable
+from typing import Any, Protocol
 
 from app.notifications.service import StatusChangeNotifier
 
 
+class TaskScheduler(Protocol):
+    def add_task(
+        self,
+        function: Callable[..., Any],
+        *args: Any,
+        **kwargs: Any,
+    ) -> Any:
+        """Schedule callable execution after the current unit of work."""
+
+
 def enqueue_status_change_notification(
-    background_tasks: BackgroundTasks,
+    background_tasks: TaskScheduler,
     notifier: StatusChangeNotifier,
     *,
     recipient: str | None,

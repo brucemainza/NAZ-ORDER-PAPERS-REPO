@@ -3,6 +3,9 @@ import importlib.util
 from datetime import date, datetime, timedelta, timezone
 from uuid import uuid4
 
+import pytest
+
+from app.email.base import EmailProvider
 from app.lib.auth import create_access_token
 from app.models import (
     ParliamentaryRecord,
@@ -36,7 +39,7 @@ def _session():
     )
 
 
-def _user(db_session, *, prefix, permission_codes=()):
+def _user(db_session, *, prefix, permission_codes=(), email=None):
     permissions = [
         Permission(code=code, description=code.replace("_", " ").title())
         for code in permission_codes
@@ -44,6 +47,7 @@ def _user(db_session, *, prefix, permission_codes=()):
     user = User(
         employee_id=f"{prefix}-{uuid4()}",
         name=f"{prefix} User",
+        email=email,
         role="Clerk" if "record_response" in permission_codes else "Member",
         status="Active",
         roles=[
@@ -73,7 +77,7 @@ def _headers(db_session, user):
     return {"Authorization": f"Bearer {token}"}
 
 
-def _question(*, status="Scheduled"):
+def _question(*, status="Scheduled", submitter=None):
     return ParliamentaryRecord(
         item_type="Question",
         session=_session(),
@@ -87,6 +91,7 @@ def _question(*, status="Scheduled"):
         ),
         status=status,
         sitting_date=date(2026, 9, 14),
+        submitter=submitter,
     )
 
 
@@ -206,3 +211,114 @@ def test_response_requires_scheduled_question_without_existing_response(
 
     assert first.status_code == 201
     assert repeated.status_code == 409
+
+
+class FakeEmailProvider(EmailProvider):
+    def __init__(self):
+        self.calls = []
+
+    async def send_email(
+        self,
+        to,
+        subject,
+        body,
+        html_body=None,
+    ):
+        self.calls.append(
+            {
+                "to": to,
+                "subject": subject,
+                "body": body,
+                "html_body": html_body,
+            }
+        )
+        return True
+
+
+def test_recording_response_marks_question_answered_and_notifies_submitter(
+    client,
+    db_session,
+):
+    _load_response_service_module()
+    email_factory = importlib.import_module("app.email.factory")
+    provider = FakeEmailProvider()
+    app = importlib.import_module("app.main").app
+    app.dependency_overrides[email_factory.get_email_provider] = lambda: provider
+    clerk = _user(
+        db_session,
+        prefix="ANSWERED-CLERK",
+        permission_codes=("record_response",),
+    )
+    submitter = _user(
+        db_session,
+        prefix="ANSWERED-SUBMITTER",
+        email="answered.submitter@parliament.gov.zm",
+    )
+    question = _question(submitter=submitter)
+    db_session.add(question)
+    db_session.commit()
+
+    response = client.post(
+        f"/records/{question.id}/response",
+        json=_payload(),
+        headers=_headers(db_session, clerk),
+    )
+
+    assert response.status_code == 201
+    assert response.json()["status"] == "Answered"
+    db_session.refresh(question)
+    assert question.status == "Answered"
+    assert len(provider.calls) == 1
+    assert provider.calls[0]["to"] == "answered.submitter@parliament.gov.zm"
+    assert provider.calls[0]["subject"] == (
+        "Question status changed to Answered"
+    )
+
+
+class FailingStatusTransitioner:
+    def transition(self, record, target_status):
+        raise RuntimeError("forced status update failure")
+
+
+class FakeStatusChangeNotifier:
+    async def notify_status_change(self, **kwargs):
+        return True
+
+
+class FakeTaskScheduler:
+    def __init__(self):
+        self.tasks = []
+
+    def add_task(self, function, *args, **kwargs):
+        self.tasks.append((function, args, kwargs))
+
+
+def test_response_and_status_transition_are_atomic_on_forced_failure(db_session):
+    responses = _load_response_service_module()
+    models = importlib.import_module("app.models")
+    clerk = _user(
+        db_session,
+        prefix="ATOMIC-CLERK",
+        permission_codes=("record_response",),
+    )
+    question = _question()
+    db_session.add(question)
+    db_session.commit()
+    service = responses.ResponseRecordingService(
+        db_session,
+        status_transitioner=FailingStatusTransitioner(),
+        notifier=FakeStatusChangeNotifier(),
+        task_scheduler=FakeTaskScheduler(),
+    )
+
+    with pytest.raises(RuntimeError, match="forced status update failure"):
+        service.record_response(
+            record_id=question.id,
+            response_text=_payload()["response_text"],
+            response_date=date(2026, 9, 14),
+            recorded_by=clerk.id,
+        )
+
+    assert db_session.query(models.QuestionResponse).count() == 0
+    db_session.refresh(question)
+    assert question.status == "Scheduled"
