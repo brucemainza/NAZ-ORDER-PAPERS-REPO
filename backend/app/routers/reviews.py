@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import add_audit_log, get_current_user, request_ip
+from app.deps import add_audit_log, request_ip, require_permission
 from app.models import ParliamentaryRecord, ReviewDecision, User
 from app.schemas.review import ReviewDecisionCreate, ReviewDecisionOut
 
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/records/{record_id}/reviews", tags=["reviews"])
 def list_review_decisions(
     record_id: UUID,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_permission("review_submission")),
 ) -> list[ReviewDecisionOut]:
     rows = db.execute(
         select(ReviewDecision, User.name)
@@ -46,7 +46,7 @@ def record_review_decision(
     decision_in: ReviewDecisionCreate,
     request: Request,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_permission("review_submission")),
 ) -> ReviewDecisionOut:
     record = db.execute(select(ParliamentaryRecord).where(ParliamentaryRecord.id == record_id)).scalars().first()
     if not record:
@@ -67,7 +67,6 @@ def record_review_decision(
         reviewer_id=user.id,
         notes=decision_in.notes,
     )
-    record.status = decision_in.decision
     db.add(decision)
     db.flush()
     add_audit_log(

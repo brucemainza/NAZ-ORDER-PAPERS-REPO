@@ -11,6 +11,7 @@ export function normalizeRecord(record, score) {
         snippet: record.full_text,
         fullText: record.full_text,
         status: record.status,
+        sittingDate: record.sitting_date,
     };
 }
 
@@ -29,10 +30,12 @@ export function normalizeSubmission(record) {
         sessionId: record.session_id,
         member: record.member,
         ministry: record.ministry,
+        answerType: record.answer_type,
         subject: record.subject,
         fullText: record.full_text,
         submittedBy: record.member,
         submittedAt: record.created_at,
         status: record.status,
+        sittingDate: record.sitting_date,
     };
 }

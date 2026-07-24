@@ -1,9 +1,16 @@
 from .models import (
     AuditLog,
+    Permission,
     ParliamentaryRecord,
     ParliamentarySession,
+    QuestionResponse,
+    Role,
     ReviewDecision,
     SearchLog,
     User,
     UserSession,
+    WorkflowDecision,
+    related_item_links,
+    role_permissions,
+    user_roles,
 )

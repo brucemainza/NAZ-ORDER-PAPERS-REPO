@@ -36,9 +36,9 @@ export default function ReportsPage() {
     if (isLoading) {
         return (<div>
           <PageHeader title="Reports" description="High-level operational reporting for parliamentary submissions, similarity outcomes and drafting activity."/>
-          <div className="rounded-md border border-[--border] bg-white px-6 py-10 text-center shadow-sm">
-            <Spinner className="mx-auto h-6 w-6"/>
-            <p className="mt-3 text-sm text-[--muted]">Loading report data...</p>
+          <div className="page-loading">
+            <Spinner className="page-loading__spinner"/>
+            <p className="page-loading__text">Loading report data...</p>
           </div>
         </div>);
     }
@@ -55,7 +55,7 @@ export default function ReportsPage() {
         { key: "total", header: "Total", render: (row) => row.total },
         { key: "questions", header: "Questions", render: (row) => row.questions },
         { key: "motions", header: "Motions", render: (row) => row.motions },
-        { key: "pending", header: "Pending", render: (row) => row.pending_review },
+        { key: "pending", header: "Under Review", render: (row) => row.pending_review },
         { key: "duplicates", header: "Duplicates", render: (row) => row.duplicates },
     ];
     const matchColumns = [
@@ -68,34 +68,34 @@ export default function ReportsPage() {
         { key: "name", header: "Name", render: (row) => row.name },
         { key: "dept", header: "Department", render: (row) => row.department || "n/a" },
         { key: "submissions", header: "Submissions", render: (row) => row.submissions },
-        { key: "pending", header: "Pending", render: (row) => row.pending_review },
+        { key: "pending", header: "Under Review", render: (row) => row.pending_review },
         { key: "duplicates", header: "Duplicates", render: (row) => row.duplicates },
     ];
 
     return (<div>
       <PageHeader title="Reports" description="High-level operational reporting for parliamentary submissions, similarity outcomes and drafting activity."/>
 
-      <div className="mb-6 grid gap-4 md:grid-cols-3">
-        <Card className="p-5"><p className="text-sm text-[--muted]">Total submissions</p><p className="mt-2 text-3xl font-semibold text-[--black]">{totals.submissions}</p></Card>
-        <Card className="p-5"><p className="text-sm text-[--muted]">Pending review</p><p className="mt-2 text-3xl font-semibold text-[--black]">{totals.pending}</p></Card>
-        <Card className="p-5"><p className="text-sm text-[--muted]">Duplicates</p><p className="mt-2 text-3xl font-semibold text-[--black]">{totals.duplicates}</p></Card>
+      <div className="reports-page__summary">
+        <Card className="reports-page__summary-card"><p className="reports-page__summary-label">Total submissions</p><p className="reports-page__summary-value">{totals.submissions}</p></Card>
+        <Card className="reports-page__summary-card"><p className="reports-page__summary-label">Under review</p><p className="reports-page__summary-value">{totals.pending}</p></Card>
+        <Card className="reports-page__summary-card"><p className="reports-page__summary-label">Duplicates</p><p className="reports-page__summary-value">{totals.duplicates}</p></Card>
       </div>
 
-      <div className="space-y-6">
-        <section className="space-y-3">
-          <h2 className="text-base font-medium text-[--black]">Submissions by Session</h2>
+      <div className="reports-page__sections">
+        <section className="reports-page__section">
+          <h2 className="reports-page__section-title">Submissions by Session</h2>
           <Table columns={sessionColumns} data={reports.submissions_by_session || []} rowKey={(row) => row.session_id}/>
         </section>
-        <section className="space-y-3">
-          <h2 className="text-base font-medium text-[--black]">Similarity Match Rate Over Time</h2>
+        <section className="reports-page__section">
+          <h2 className="reports-page__section-title">Similarity Match Rate Over Time</h2>
           <Table columns={matchColumns} data={reports.similarity_match_rate || []} rowKey={(row) => row.period} emptyMessage="No review decisions have been recorded yet."/>
         </section>
-        <section className="space-y-3">
-          <h2 className="text-base font-medium text-[--black]">Member Activity</h2>
+        <section className="reports-page__section">
+          <h2 className="reports-page__section-title">Member Activity</h2>
           <Table columns={activityColumns} data={reports.member_activity || []} rowKey={(row) => row.name}/>
         </section>
-        <section className="space-y-3">
-          <h2 className="text-base font-medium text-[--black]">Department Activity</h2>
+        <section className="reports-page__section">
+          <h2 className="reports-page__section-title">Department Activity</h2>
           <Table columns={activityColumns} data={reports.department_activity || []} rowKey={(row) => row.name}/>
         </section>
       </div>

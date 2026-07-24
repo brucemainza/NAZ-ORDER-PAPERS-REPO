@@ -12,6 +12,26 @@ export function authHeaders(extra = {}) {
     };
 }
 
+function backendErrorMessage(data) {
+    if (Array.isArray(data.detail)) {
+        return data.detail
+            .map((error) => {
+                const field = Array.isArray(error.loc)
+                    ? error.loc.filter((part) => part !== "body").join(".")
+                    : "";
+                return [field, error.msg].filter(Boolean).join(": ");
+            })
+            .join("; ");
+    }
+    if (typeof data.detail === "string") {
+        return data.detail;
+    }
+    if (typeof data.message === "string") {
+        return data.message;
+    }
+    return "Backend request failed";
+}
+
 export async function proxyJson(url, options = {}) {
     const res = await fetch(`${BACKEND_URL}${url}`, {
         ...options,
@@ -25,7 +45,7 @@ export async function proxyJson(url, options = {}) {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
         return NextResponse.json(
-            { message: data.detail || data.message || "Backend request failed" },
+            { message: backendErrorMessage(data) },
             { status: res.status }
         );
     }

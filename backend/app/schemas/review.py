@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -20,5 +21,21 @@ class ReviewDecisionOut(BaseModel):
     is_duplicate: bool
     reviewer_id: UUID
     reviewer_name: str | None = None
+    notes: str | None
+    created_at: datetime
+
+
+class WorkflowReviewCreate(BaseModel):
+    action: Literal["Approve", "Reject", "Request Changes"]
+    notes: str | None = None
+
+
+class WorkflowReviewOut(BaseModel):
+    id: UUID
+    record_id: UUID
+    action: str
+    status: str
+    reviewer_id: UUID
+    reviewer_name: str
     notes: str | None
     created_at: datetime

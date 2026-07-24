@@ -9,10 +9,21 @@ export function SearchBar({ sessions, onSearch, isLoading, }) {
     const [sessionId, setSessionId] = useState("");
     const [itemType, setItemType] = useState("All");
     const [status, setStatus] = useState("All");
+    const [date, setDate] = useState("");
+    const [member, setMember] = useState("");
+    const [ministry, setMinistry] = useState("");
     const debounceTimerRef = useRef(null);
 
     const applyFilters = () => {
-        onSearch({ query, sessionId: sessionId || undefined, itemType, status });
+        onSearch({
+            query,
+            sessionId: sessionId || undefined,
+            itemType,
+            status,
+            date,
+            member,
+            ministry,
+        });
     };
 
     useEffect(() => {
@@ -29,13 +40,13 @@ export function SearchBar({ sessions, onSearch, isLoading, }) {
                 clearTimeout(debounceTimerRef.current);
             }
         };
-    }, [query, sessionId, itemType, status]);
+    }, [query, sessionId, itemType, status, date, member, ministry]);
 
-    return (<form className="rounded-md border border-[--border] bg-white p-5 shadow-sm" onSubmit={async (event) => {
+    return (<form className="search-bar" onSubmit={async (event) => {
             event.preventDefault();
             applyFilters();
         }}>
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
+      <div className="search-bar__grid">
         <Input id="searchQuery" label="Search text" placeholder="Enter keywords, member name, subject or ministry" value={query} onChange={(event) => setQuery(event.target.value)}/>
         <Select id="searchSession" label="Session" value={sessionId} onChange={(event) => setSessionId(event.target.value)}>
           <option value="">All sessions</option>
@@ -50,14 +61,20 @@ export function SearchBar({ sessions, onSearch, isLoading, }) {
         </Select>
         <Select id="searchStatus" label="Status" value={status} onChange={(event) => setStatus(event.target.value)}>
           <option value="All">All statuses</option>
-          <option value="Pending Review">Pending Review</option>
-          <option value="Duplicate">Duplicate</option>
-          <option value="Historical">Historical</option>
-          <option value="Clear">Clear</option>
+          <option value="Draft">Draft</option>
+          <option value="Submitted">Submitted</option>
+          <option value="Under Review">Under Review</option>
+          <option value="Approved">Approved</option>
+          <option value="Rejected">Rejected</option>
+          <option value="Scheduled">Scheduled</option>
+          <option value="Archived">Archived</option>
         </Select>
-        <div className="flex items-end">
-          <Button type="submit" className="w-full lg:w-auto" disabled={isLoading}>
-            <SearchIcon className="h-4 w-4"/>
+        <Input id="searchDate" type="date" label="Submission date" value={date} onChange={(event) => setDate(event.target.value)}/>
+        <Input id="searchMember" label="Member" placeholder="Filter by member" value={member} onChange={(event) => setMember(event.target.value)}/>
+        <Input id="searchMinistry" label="Ministry" placeholder="Filter by ministry" value={ministry} onChange={(event) => setMinistry(event.target.value)}/>
+        <div className="search-bar__action">
+          <Button type="submit" className="search-bar__button" disabled={isLoading}>
+            <SearchIcon className="search-bar__icon"/>
             {isLoading ? "Searching..." : "Search"}
           </Button>
         </div>

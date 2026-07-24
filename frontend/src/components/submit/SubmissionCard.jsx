@@ -7,6 +7,16 @@ import { Button, buttonStyles } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { formatDate } from "@/lib/utils";
 
+const statusVariantMap = {
+    Draft: "info",
+    Submitted: "info",
+    "Under Review": "pending",
+    Approved: "clear",
+    Rejected: "duplicate",
+    Scheduled: "reviewed",
+    Archived: "reviewed",
+};
+
 export function SubmissionCard({ record }) {
     const [isExpanded, setIsExpanded] = useState(false);
     
@@ -15,28 +25,35 @@ export function SubmissionCard({ record }) {
     const displayText = fullText;
     const shouldShowExpandButton = hasLongText;
     
-    return (<Card className="p-5">
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-3 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
+    return (<Card className="submission-card">
+      <div className="submission-card__layout">
+        <div className="submission-card__main">
+          <div className="submission-card__badges">
             <Badge variant={record.item_type === "Question" ? "question" : "motion"}>{record.item_type}</Badge>
-            <Badge variant={record.status === "Duplicate" ? "duplicate" : record.status === "Pending Review" ? "pending" : "clear"}>{record.status}</Badge>
+            {record.answer_type ? <Badge variant="info">{record.answer_type} answer</Badge> : null}
+            <Badge variant={statusVariantMap[record.status] || "info"}>{record.status}</Badge>
             {record.session_name ? <Badge variant="info">{record.session_name}</Badge> : null}
+            {typeof record.search_score === "number" ? <Badge variant="clear">{record.search_score}% relevance</Badge> : null}
           </div>
           <div>
-            <h3 className="text-base font-medium text-[--black]">{record.subject}</h3>
-            <p className="mt-1 text-sm text-[--muted]">
+            <h3 className="submission-card__title">{record.subject}</h3>
+            <p className="submission-card__meta">
               {record.member} {record.ministry ? `• ${record.ministry}` : ""} • {formatDate(record.created_at)}
             </p>
           </div>
           {fullText && (
             <>
-              <p className={isExpanded ? "text-sm text-[--black] whitespace-pre-line" : "text-sm text-[--black] whitespace-pre-line line-clamp-2 overflow-hidden"}>
+              {record.matched_terms?.length ? (
+                <p className="submission-card__match">
+                  Matched content: {record.matched_terms.join(", ")}
+                </p>
+              ) : null}
+              <p className={isExpanded ? "submission-card__text" : "submission-card__text submission-card__text--collapsed"}>
                 {displayText}
               </p>
               {shouldShowExpandButton && (
-                <Button variant="ghost" size="sm" onClick={() => setIsExpanded(!isExpanded)} className="mt-2">
-                  {isExpanded ? <ChevronUp className="h-4 w-4 mr-1" /> : <ChevronDown className="h-4 w-4 mr-1" />}
+                <Button variant="ghost" size="sm" onClick={() => setIsExpanded(!isExpanded)} className="submission-card__expand">
+                  {isExpanded ? <ChevronUp className="submission-card__icon" /> : <ChevronDown className="submission-card__icon" />}
                   {isExpanded ? "Collapse" : "Expand"}
                 </Button>
               )}
@@ -44,7 +61,7 @@ export function SubmissionCard({ record }) {
           )}
         </div>
 
-        <div className="flex flex-col items-start gap-3 sm:items-end">
+        <div className="submission-card__actions">
           <Link href={`/results/${record.id}`} className={buttonStyles({ variant: "secondary", size: "sm" })}>
             View Full Record
           </Link>

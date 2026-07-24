@@ -10,6 +10,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from app.database import Base
 from app.models import ParliamentaryRecord, ParliamentarySession
+from app.services.submission_status import SubmissionStatus
+
+
+def normalize_status(status: str | None) -> str:
+    try:
+        return SubmissionStatus(status or SubmissionStatus.ARCHIVED).value
+    except ValueError:
+        return SubmissionStatus.ARCHIVED.value
 
 
 def ingest_csv(csv_path: str, database_url: str):
@@ -33,7 +41,7 @@ def ingest_csv(csv_path: str, database_url: str):
                     ministry=row.get("ministry") or None,
                     subject=row["subject"],
                     full_text=row["full_text"],
-                    status=row.get("status", "Historical"),
+                    status=normalize_status(row.get("status")),
                 )
                 session.add(record)
 
