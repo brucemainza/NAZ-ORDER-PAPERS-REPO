@@ -136,7 +136,7 @@ def similar_records(
     if not can_view_record(record, user):
         raise HTTPException(status_code=403, detail="Record is not visible")
 
-    candidates = find_previously_addressed_candidates(db, record=record, limit=5)
+    candidates = find_previously_addressed_candidates(db, record=record, user=user, limit=5)
     add_audit_log(
         db,
         user_id=user.id,

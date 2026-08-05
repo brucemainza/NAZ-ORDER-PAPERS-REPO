@@ -62,7 +62,8 @@ CREATE TABLE IF NOT EXISTS parliamentary_records (
     CHECK (status IN ('Draft', 'Submitted', 'Under Review', 'Approved', 'Rejected', 'Scheduled', 'Answered', 'Discussed', 'Archived')),
   submitted_by uuid REFERENCES users(id),
   sitting_date date,
-  embedding vector(384),
+  embedding vector(768),
+  embedding_model text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 

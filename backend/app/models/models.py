@@ -217,7 +217,8 @@ class ParliamentaryRecord(Base):
         ForeignKey("users.id"),
     )
     sitting_date: Mapped[Optional[date]] = mapped_column(Date)
-    embedding: Mapped[Optional[list[float]]] = mapped_column(Vector(384))
+    embedding: Mapped[Optional[list[float]]] = mapped_column(Vector(768))
+    embedding_model: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     session: Mapped["ParliamentarySession"] = relationship(back_populates="records")

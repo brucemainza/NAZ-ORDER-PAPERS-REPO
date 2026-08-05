@@ -197,6 +197,7 @@ def create_submission(
             },
         )
 
+    search_text = build_similarity_text(submission.subject, submission.full_text)
     record = ParliamentaryRecord(
         item_type=submission.item_type,
         session_id=submission.session_id,
@@ -207,9 +208,8 @@ def create_submission(
         full_text=submission.full_text.strip(),
         status=SubmissionStatus.SUBMITTED.value,
         submitted_by=user.id,
-        embedding=embedding_generator.embed(
-            build_similarity_text(submission.subject, submission.full_text)
-        ),
+        embedding=embedding_generator.embed(search_text),
+        embedding_model=embedding_generator.model_name,
     )
     transition_submission(record, SubmissionStatus.UNDER_REVIEW)
     db.add(record)
@@ -227,7 +227,7 @@ def create_submission(
     db.commit()
     db.refresh(record)
 
-    candidates = find_previously_addressed_candidates(db, record=record, limit=5)
+    candidates = find_previously_addressed_candidates(db, record=record, user=user, limit=5)
     return SubmissionResponse(
         record=record,
         candidates=[
@@ -307,6 +307,7 @@ def update_draft(
     request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    embedding_generator: EmbeddingGenerator = Depends(get_embedding_generator),
 ) -> ParliamentaryRecord:
     record = db.get(ParliamentaryRecord, record_id)
     if not record:
@@ -359,6 +360,11 @@ def update_draft(
 
     for field, value in changes.items():
         setattr(record, field, value)
+
+    if "subject" in changes or "full_text" in changes:
+        search_text = build_similarity_text(record.subject, record.full_text)
+        record.embedding = embedding_generator.embed(search_text)
+        record.embedding_model = embedding_generator.model_name
 
     add_audit_log(
         db,

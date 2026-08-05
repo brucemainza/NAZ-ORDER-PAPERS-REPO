@@ -16,6 +16,7 @@ import { useAuthContext } from "@/context/AuthContext";
 import { hasPermission } from "@/lib/auth";
 import { normalizeSearchResult, normalizeSubmission } from "@/lib/records";
 import { formatDate, formatDateTime } from "@/lib/utils";
+import SimilarityEvidence from "@/components/ai/SimilarityEvidence";
 
 const statusVariantMap = {
     Draft: "info",
@@ -222,6 +223,13 @@ export default function ResultDetailPage() {
               const sessionName = sessions.find(s => s.id === result.match.sessionId)?.name || result.match.sessionId;
               return <ResultCard key={result.match.id} result={{...result, match: {...result.match, sessionName}}} expandable initiallyExpanded={result.rank === 1}/>
             }))}
+
+            {matches.length > 0 && submission && (
+              <SimilarityEvidence
+                queryText={`${submission.subject}\n${submission.fullText}`}
+                matches={matches}
+              />
+            )}
           </section>
 
           <section className="result-detail__section">

@@ -254,5 +254,5 @@ def test_duplicate_confirmation_override_allows_submission(
         response.json()["record"]["id"],
     )
     assert created is not None
-    assert len(created.embedding) == 384
+    assert len(created.embedding) == 768
     assert db_session.query(ParliamentaryRecord).count() == 2

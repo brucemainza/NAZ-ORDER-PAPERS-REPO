@@ -49,22 +49,22 @@ def test_similarity_backend_accepts_a_substitutable_fake():
 
 def test_embedding_generator_returns_consistent_fixed_dimension_vectors():
     embeddings = _load_similarity_module("embeddings")
-    generator = embeddings.TokenHashEmbeddingGenerator(dimension=384)
+    generator = embeddings.TokenHashEmbeddingGenerator(dimension=768)
 
     first = generator.embed("Improve rural water access")
     second = generator.embed("Improve rural water access")
 
-    assert generator.dimension == 384
-    assert len(first) == 384
+    assert generator.dimension == 768
+    assert len(first) == 768
     assert first == second
     assert any(value != 0 for value in first)
 
 
 def test_embedding_generator_handles_empty_text_without_nan_values():
     embeddings = _load_similarity_module("embeddings")
-    generator = embeddings.TokenHashEmbeddingGenerator(dimension=384)
+    generator = embeddings.TokenHashEmbeddingGenerator(dimension=768)
 
     vector = generator.embed("  ")
 
-    assert len(vector) == 384
-    assert vector == [0.0] * 384
+    assert len(vector) == 768
+    assert vector == [0.0] * 768

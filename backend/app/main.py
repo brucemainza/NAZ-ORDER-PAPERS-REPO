@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.database import SessionLocal
 from app.db_compat import ensure_runtime_schema
+from app.ai import router as ai_router
 from app.routers import (
     audit,
     auth,
@@ -54,6 +55,7 @@ app.include_router(responses.router)
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(workflow_reviews.router)
+app.include_router(ai_router.router)
 
 
 @app.on_event("startup")

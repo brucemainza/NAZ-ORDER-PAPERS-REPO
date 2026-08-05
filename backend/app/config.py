@@ -18,6 +18,19 @@ class Settings:
     smtp_use_tls: bool
     smtp_timeout: float
 
+    # AI / local Ollama settings
+    ollama_base_url: str
+    ollama_embedding_model: str
+    ollama_llm_model: str
+    ai_embedding_dimension: int
+    ai_rrf_k: int
+    ai_lexical_top_k: int
+    ai_semantic_top_k: int
+    ai_final_top_k: int
+    ai_explanation_enabled: bool
+    ai_explanation_max_tokens: int
+    ai_request_timeout: float
+
     def __init__(self) -> None:
         self.database_url = getenv(
             "DATABASE_URL",
@@ -40,6 +53,22 @@ class Settings:
             "on",
         }
         self.smtp_timeout = float(getenv("SMTP_TIMEOUT", "30"))
+
+        self.ollama_base_url = getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+        self.ollama_embedding_model = getenv(
+            "OLLAMA_EMBEDDING_MODEL", "embeddinggemma:300m"
+        )
+        self.ollama_llm_model = getenv("OLLAMA_LLM_MODEL", "qwen3.5:4b")
+        self.ai_embedding_dimension = int(getenv("AI_EMBEDDING_DIMENSION", "768"))
+        self.ai_rrf_k = int(getenv("AI_RRF_K", "60"))
+        self.ai_lexical_top_k = int(getenv("AI_LEXICAL_TOP_K", "20"))
+        self.ai_semantic_top_k = int(getenv("AI_SEMANTIC_TOP_K", "20"))
+        self.ai_final_top_k = int(getenv("AI_FINAL_TOP_K", "5"))
+        self.ai_explanation_enabled = getenv(
+            "AI_EXPLANATION_ENABLED", "true"
+        ).strip().casefold() in {"1", "true", "yes", "on"}
+        self.ai_explanation_max_tokens = int(getenv("AI_EXPLANATION_MAX_TOKENS", "400"))
+        self.ai_request_timeout = float(getenv("AI_REQUEST_TIMEOUT", "120"))
 
 
 @lru_cache

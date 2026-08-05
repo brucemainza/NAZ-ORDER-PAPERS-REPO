@@ -27,6 +27,9 @@ services:
       - DATABASE_URL=postgresql+psycopg://naz_user:naz_password@db:5432/naz_order_papers
       - FRONTEND_ORIGIN=http://localhost:3000
       - JWT_SECRET=${JWT_SECRET:-naz-order-papers-jwt-secret-change-in-production}
+      - OLLAMA_BASE_URL=http://host.docker.internal:11435
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./backend/app:/app/app
     depends_on:

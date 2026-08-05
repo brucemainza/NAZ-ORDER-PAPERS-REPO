@@ -12,6 +12,7 @@ class SearchRequest(BaseModel):
     date: dt.date | None = None
     member: str | None = None
     ministry: str | None = None
+    mode: str = Field(default="keyword", pattern="^(keyword|hybrid)$")
     limit: int = Field(default=5, ge=1, le=20)
     offset: int = Field(default=0, ge=0)
 
