@@ -40,6 +40,18 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./backend/app:/app/app
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request;
+          urllib.request.urlopen('http://localhost:8000/readyz', timeout=3)
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -75,7 +87,7 @@ services:
       db:
         condition: service_healthy
       backend:
-        condition: service_started
+        condition: service_healthy
     command: npm run dev
 
   portainer:
