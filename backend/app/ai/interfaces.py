@@ -1,6 +1,4 @@
 from abc import ABC, abstractmethod
-from collections.abc import Collection
-from uuid import UUID
 
 from app.ai.schemas import AIExplanation, RecordMatch, SimilaritySearchRequest
 

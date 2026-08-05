@@ -19,7 +19,10 @@ from app.observability.metrics import update_queue_metrics
 
 def expected_schema_revision() -> str:
     config = Config(Path(__file__).parents[2] / "alembic.ini")
-    return ScriptDirectory.from_config(config).get_current_head()
+    revision = ScriptDirectory.from_config(config).get_current_head()
+    if revision is None:
+        raise RuntimeError("Alembic has no schema head")
+    return revision
 
 
 class ReadinessProbe:

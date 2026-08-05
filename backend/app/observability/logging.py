@@ -60,7 +60,7 @@ def configure_structured_logging(*, level: str = "INFO", enabled: bool = True) -
     if any(getattr(handler, "_naz_json_handler", False) for handler in root.handlers):
         return
     handler = logging.StreamHandler()
-    handler._naz_json_handler = True
+    setattr(handler, "_naz_json_handler", True)
     handler.setFormatter(RedactingJsonFormatter())
     handler.addFilter(RequestContextFilter())
     root.addHandler(handler)

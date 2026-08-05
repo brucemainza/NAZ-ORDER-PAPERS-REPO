@@ -5,7 +5,6 @@ from time import perf_counter
 
 from sqlalchemy.orm import Session
 
-from app.ai.embeddings.ollama_provider import OllamaEmbeddingProvider
 from app.ai.interfaces import EmbeddingProvider, ExplanationProvider, RankFusion
 from app.ai.retrieval.hybrid import RRFRankFusion
 from app.ai.retrieval.lexical import PostgresLexicalRetriever

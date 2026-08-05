@@ -1,0 +1,244 @@
+name: naz-order-papers-production
+
+x-runtime-environment: &runtime-environment
+  DATABASE_URL: "${DATABASE_URL:?DATABASE_URL must be supplied by the production secret store}"
+  OLLAMA_BASE_URL: "http://ollama:11434"
+  CLAMAV_HOST: "clamav"
+  CLAMAV_PORT: "3310"
+  UPLOAD_MALWARE_SCAN_REQUIRED: "true"
+  LOG_JSON: "true"
+
+x-hardened-service: &hardened-service
+  read_only: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: "${POSTGRES_IMAGE:?Set POSTGRES_IMAGE to an approved digest-pinned image}"
+    environment:
+      POSTGRES_DB: "${POSTGRES_DB:-naz_order_papers}"
+      POSTGRES_USER: "${POSTGRES_USER:-naz_user}"
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    command:
+      - postgres
+      - -c
+      - wal_level=replica
+      - -c
+      - archive_mode=on
+      - -c
+      - archive_timeout=900
+      - -c
+      - archive_command=/usr/local/bin/archive-wal.sh %f %p
+      - -c
+      - max_wal_senders=10
+    secrets:
+      - postgres_password
+      - backup_age_recipients
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - encrypted_wal:/wal_archive
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          cpus: "1.0"
+          memory: 1G
+        limits:
+          cpus: "4.0"
+          memory: 8G
+
+  migrate:
+    image: "${API_IMAGE:?Set API_IMAGE to an approved digest-pinned image}"
+    command: ["python", "-m", "scripts.migrate"]
+    env_file:
+      - "${NAZ_PRODUCTION_ENV_FILE:-.env.production}"
+    environment: *runtime-environment
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    <<: *hardened-service
+    image: "${API_IMAGE:?Set API_IMAGE to an approved digest-pinned image}"
+    env_file:
+      - "${NAZ_PRODUCTION_ENV_FILE:-.env.production}"
+    environment:
+      <<: *runtime-environment
+      FRONTEND_ORIGIN: "${FRONTEND_ORIGIN:?FRONTEND_ORIGIN is required}"
+      DB_POOL_SIZE: "${DB_POOL_SIZE:-10}"
+      DB_MAX_OVERFLOW: "${DB_MAX_OVERFLOW:-20}"
+      DB_STATEMENT_TIMEOUT_MS: "${DB_STATEMENT_TIMEOUT_MS:-30000}"
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=2).read()"]
+      interval: 15s
+      timeout: 3s
+      start_period: 30s
+      retries: 4
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      clamav:
+        condition: service_healthy
+    deploy:
+      replicas: 2
+      resources:
+        reservations:
+          cpus: "0.50"
+          memory: 512M
+        limits:
+          cpus: "2.0"
+          memory: 2G
+      update_config:
+        order: start-first
+        failure_action: rollback
+
+  worker:
+    <<: *hardened-service
+    image: "${API_IMAGE:?Set API_IMAGE to an approved digest-pinned image}"
+    command: ["python", "-m", "app.jobs.worker"]
+    env_file:
+      - "${NAZ_PRODUCTION_ENV_FILE:-.env.production}"
+    environment: *runtime-environment
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      clamav:
+        condition: service_healthy
+    deploy:
+      replicas: 2
+      resources:
+        reservations:
+          cpus: "0.50"
+          memory: 512M
+        limits:
+          cpus: "2.0"
+          memory: 2G
+
+  frontend:
+    <<: *hardened-service
+    image: "${FRONTEND_IMAGE:?Set FRONTEND_IMAGE to an approved digest-pinned image}"
+    env_file:
+      - "${NAZ_PRODUCTION_ENV_FILE:-.env.production}"
+    environment:
+      BACKEND_INTERNAL_URL: http://api:8000
+      NEXT_PUBLIC_API_URL: ""
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    ports:
+      - "${FRONTEND_BIND_ADDRESS:-127.0.0.1}:${FRONTEND_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/', r => process.exit(r.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 15s
+      timeout: 3s
+      start_period: 30s
+      retries: 4
+    depends_on:
+      api:
+        condition: service_healthy
+    deploy:
+      replicas: 1
+      resources:
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+        limits:
+          cpus: "1.0"
+          memory: 1G
+
+  ollama:
+    image: "${OLLAMA_IMAGE:?Set OLLAMA_IMAGE to an approved digest-pinned image containing the approved models}"
+    volumes:
+      - ollama_models:/root/.ollama
+    expose: ["11434"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      replicas: 2
+      resources:
+        reservations:
+          devices:
+            - capabilities: ["gpu"]
+        limits:
+          cpus: "8.0"
+          memory: 16G
+
+  clamav:
+    image: "${CLAMAV_IMAGE:?Set CLAMAV_IMAGE to an approved digest-pinned image}"
+    expose: ["3310"]
+    volumes:
+      - clamav_signatures:/var/lib/clamav
+    healthcheck:
+      test: ["CMD-SHELL", "printf 'PING\\n' | nc 127.0.0.1 3310 | grep PONG"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          cpus: "0.50"
+          memory: 1G
+        limits:
+          cpus: "2.0"
+          memory: 4G
+
+  backup:
+    image: "${POSTGRES_IMAGE:?Set POSTGRES_IMAGE to an approved digest-pinned image}"
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["while true; do /usr/local/bin/backup.sh; sleep 21600; done"]
+    environment:
+      PGHOST: postgres
+      PGDATABASE: "${POSTGRES_DB:-naz_order_papers}"
+      PGUSER: "${POSTGRES_USER:-naz_user}"
+      PGPASSFILE: /run/secrets/postgres_pgpass
+      BACKUP_DIR: /backups
+      BACKUP_AGE_RECIPIENTS_FILE: /run/secrets/backup_age_recipients
+    secrets:
+      - postgres_pgpass
+      - backup_age_recipients
+    volumes:
+      - encrypted_backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+secrets:
+  postgres_password:
+    file: "${POSTGRES_PASSWORD_FILE:?Path to PostgreSQL password secret is required}"
+  postgres_pgpass:
+    file: "${POSTGRES_PGPASS_FILE:?Path to PostgreSQL pgpass secret is required}"
+  backup_age_recipients:
+    file: "${BACKUP_AGE_RECIPIENTS_FILE:?Path to age recipients file is required}"
+
+volumes:
+  postgres_data:
+  encrypted_wal:
+  encrypted_backups:
+  ollama_models:
+  clamav_signatures:
