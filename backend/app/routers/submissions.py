@@ -198,6 +198,16 @@ def create_submission(
         )
 
     search_text = build_similarity_text(submission.subject, submission.full_text)
+    embedding = None
+    embedding_model = None
+    ai_warnings: list[str] = []
+    try:
+        embedding = embedding_generator.embed(search_text)
+        embedding_model = embedding_generator.model_name
+    except RuntimeError:
+        ai_warnings.append(
+            "Semantic indexing is queued because the AI service is unavailable."
+        )
     record = ParliamentaryRecord(
         item_type=submission.item_type,
         session_id=submission.session_id,
@@ -208,8 +218,8 @@ def create_submission(
         full_text=submission.full_text.strip(),
         status=SubmissionStatus.SUBMITTED.value,
         submitted_by=user.id,
-        embedding=embedding_generator.embed(search_text),
-        embedding_model=embedding_generator.model_name,
+        embedding=embedding,
+        embedding_model=embedding_model,
     )
     transition_submission(record, SubmissionStatus.UNDER_REVIEW)
     db.add(record)
@@ -240,6 +250,8 @@ def create_submission(
             for index, match in enumerate(candidates)
         ],
         previously_addressed=addressed_matches,
+        ai_degraded=bool(ai_warnings),
+        warnings=ai_warnings,
     )
 
 
@@ -363,8 +375,12 @@ def update_draft(
 
     if "subject" in changes or "full_text" in changes:
         search_text = build_similarity_text(record.subject, record.full_text)
-        record.embedding = embedding_generator.embed(search_text)
-        record.embedding_model = embedding_generator.model_name
+        try:
+            record.embedding = embedding_generator.embed(search_text)
+            record.embedding_model = embedding_generator.model_name
+        except RuntimeError:
+            record.embedding = None
+            record.embedding_model = None
 
     add_audit_log(
         db,

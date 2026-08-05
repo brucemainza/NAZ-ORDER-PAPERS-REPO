@@ -11,6 +11,14 @@ from app.models import (
     User,
     UserSession,
 )
+from app.main import app
+from app.similarity.dependencies import (
+    get_duplicate_checker,
+    get_embedding_generator,
+    get_previously_addressed_checker,
+)
+from app.similarity.duplicate_detection import DuplicateCheckResult
+from app.similarity.previously_addressed import PreviouslyAddressedResult
 
 
 def create_active_session(db_session):
@@ -131,3 +139,54 @@ def test_user_without_submit_question_permission_cannot_submit_question(
 
     assert response.status_code == 403
     assert db_session.query(ParliamentaryRecord).count() == 0
+
+
+class _NoDuplicates:
+    def check(self, **_kwargs):
+        return DuplicateCheckResult(matches=[])
+
+
+class _NoPreviouslyAddressed:
+    def check(self, **_kwargs):
+        return PreviouslyAddressedResult(matches=[])
+
+
+class _OfflineEmbeddingGenerator:
+    model_name = "offline-model"
+
+    def embed(self, _text):
+        raise RuntimeError("Ollama is offline")
+
+
+def test_submission_succeeds_when_embedding_service_is_offline(
+    client,
+    db_session,
+    monkeypatch,
+):
+    session = create_active_session(db_session)
+    user = create_user_with_permissions(db_session, "submit_question")
+    app.dependency_overrides[get_duplicate_checker] = lambda: _NoDuplicates()
+    app.dependency_overrides[get_previously_addressed_checker] = (
+        lambda: _NoPreviouslyAddressed()
+    )
+    app.dependency_overrides[get_embedding_generator] = (
+        lambda: _OfflineEmbeddingGenerator()
+    )
+    monkeypatch.setattr(
+        "app.routers.submissions.find_previously_addressed_candidates",
+        lambda *_args, **_kwargs: [],
+    )
+
+    response = client.post(
+        "/submissions",
+        json=question_payload(session.id),
+        headers=auth_headers(db_session, user),
+    )
+
+    assert response.status_code == 201
+    assert response.json()["ai_degraded"] is True
+    assert response.json()["warnings"] == [
+        "Semantic indexing is queued because the AI service is unavailable."
+    ]
+    saved = db_session.get(ParliamentaryRecord, response.json()["record"]["id"])
+    assert saved.embedding is None

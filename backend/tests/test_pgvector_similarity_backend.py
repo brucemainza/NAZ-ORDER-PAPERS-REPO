@@ -154,3 +154,17 @@ def test_embedding_vector_is_persisted_with_the_configured_dimension(db_session)
 
     assert persisted is not None
     assert len(persisted.embedding) == generator.dimension == _EMBEDDING_DIMENSION
+
+
+def test_pgvector_backend_returns_no_matches_when_embedding_provider_is_offline(
+    db_session,
+):
+    backend_type = _load_pgvector_backend()
+
+    class OfflineGenerator:
+        def embed(self, _text):
+            raise RuntimeError("offline")
+
+    backend = backend_type(db_session, OfflineGenerator())
+
+    assert backend.find_similar("rural water", threshold=0.5, top_n=5) == []

@@ -33,6 +33,9 @@ class SimilaritySearchResponse(BaseModel):
     embedding_model: str
     total_lexical: int
     total_semantic: int
+    retrieval_mode: str = "hybrid"
+    degraded: bool = False
+    warnings: list[str] = Field(default_factory=list)
 
 
 class AIExplainRequest(BaseModel):

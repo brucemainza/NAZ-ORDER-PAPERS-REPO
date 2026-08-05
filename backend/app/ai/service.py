@@ -65,16 +65,29 @@ class AISimilarityService:
         )
 
         # Semantic retrieval.
-        query_embedding = self._embedding_provider.embed_query(request.query_text)
-        semantic = PgVectorSemanticRetriever(self._db, self._user)
-        semantic_matches = semantic.search(
-            request,
-            query_embedding,
-            self._settings.ai_semantic_top_k,
-        )
+        semantic_matches: list[RecordMatch] = []
+        retrieval_mode = "hybrid"
+        degraded = False
+        warnings: list[str] = []
+        try:
+            query_embedding = self._embedding_provider.embed_query(request.query_text)
+            semantic = PgVectorSemanticRetriever(self._db, self._user)
+            semantic_matches = semantic.search(
+                request,
+                query_embedding,
+                self._settings.ai_semantic_top_k,
+            )
+        except RuntimeError as exc:
+            logger.warning("Semantic retrieval unavailable; using lexical only: %s", exc)
+            retrieval_mode = "lexical"
+            degraded = True
+            warnings.append("Semantic retrieval is temporarily unavailable.")
 
         # Fuse and truncate.
-        fused = self._rank_fusion.combine(lexical_matches, semantic_matches)
+        ranked_lists = [lexical_matches]
+        if not degraded:
+            ranked_lists.append(semantic_matches)
+        fused = self._rank_fusion.combine(*ranked_lists)
         final = fused[: self._settings.ai_final_top_k]
 
         return SimilaritySearchResponse(
@@ -83,6 +96,9 @@ class AISimilarityService:
             embedding_model=self._embedding_provider.model_name,
             total_lexical=len(lexical_matches),
             total_semantic=len(semantic_matches),
+            retrieval_mode=retrieval_mode,
+            degraded=degraded,
+            warnings=warnings,
         )
 
     def explain(self, query_text: str, evidence: list[dict]) -> AIExplanation:

@@ -30,6 +30,9 @@ class Settings:
     ai_explanation_enabled: bool
     ai_explanation_max_tokens: int
     ai_request_timeout: float
+    ai_connect_timeout: float
+    ai_max_retries: int
+    ai_circuit_break_seconds: float
 
     def __init__(self) -> None:
         self.database_url = getenv(
@@ -69,6 +72,11 @@ class Settings:
         ).strip().casefold() in {"1", "true", "yes", "on"}
         self.ai_explanation_max_tokens = int(getenv("AI_EXPLANATION_MAX_TOKENS", "400"))
         self.ai_request_timeout = float(getenv("AI_REQUEST_TIMEOUT", "120"))
+        self.ai_connect_timeout = float(getenv("AI_CONNECT_TIMEOUT", "5"))
+        self.ai_max_retries = int(getenv("AI_MAX_RETRIES", "2"))
+        self.ai_circuit_break_seconds = float(
+            getenv("AI_CIRCUIT_BREAK_SECONDS", "30")
+        )
 
 
 @lru_cache
