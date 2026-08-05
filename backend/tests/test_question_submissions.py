@@ -194,3 +194,41 @@ def test_submission_succeeds_when_embedding_service_is_offline(
     job = db_session.query(BackgroundJob).one()
     assert job.job_type == "embed_record"
     assert job.payload["record_id"] == str(saved.id)
+
+
+def test_submission_idempotency_key_replays_original_and_rejects_new_payload(
+    client,
+    db_session,
+    monkeypatch,
+):
+    session = create_active_session(db_session)
+    user = create_user_with_permissions(db_session, "submit_question")
+    app.dependency_overrides[get_duplicate_checker] = lambda: _NoDuplicates()
+    app.dependency_overrides[get_previously_addressed_checker] = (
+        lambda: _NoPreviouslyAddressed()
+    )
+    app.dependency_overrides[get_embedding_generator] = (
+        lambda: _OfflineEmbeddingGenerator()
+    )
+    monkeypatch.setattr(
+        "app.routers.submissions.find_previously_addressed_candidates",
+        lambda *_args, **_kwargs: [],
+    )
+    headers = {
+        **auth_headers(db_session, user),
+        "Idempotency-Key": "submit-question-001",
+    }
+    payload = question_payload(session.id)
+
+    first = client.post("/submissions", json=payload, headers=headers)
+    replay = client.post("/submissions", json=payload, headers=headers)
+    changed = client.post(
+        "/submissions",
+        json={**payload, "subject": "A different substantive question"},
+        headers=headers,
+    )
+
+    assert first.status_code == replay.status_code == 201
+    assert first.json()["record"]["id"] == replay.json()["record"]["id"]
+    assert changed.status_code == 409
+    assert db_session.query(ParliamentaryRecord).count() == 1

@@ -60,7 +60,11 @@ class ResponseRecordingService(ResponseRecorder):
         response_date: date,
         recorded_by: UUID,
     ) -> QuestionResponse:
-        record = self._db.get(ParliamentaryRecord, record_id)
+        record = self._db.scalar(
+            select(ParliamentaryRecord)
+            .where(ParliamentaryRecord.id == record_id)
+            .with_for_update()
+        )
         if record is None:
             raise ResponseRecordNotFound("Question not found")
         if record.item_type != "Question":

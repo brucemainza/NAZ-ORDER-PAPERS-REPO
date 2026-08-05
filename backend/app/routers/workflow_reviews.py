@@ -1,6 +1,7 @@
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Request
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -10,10 +11,22 @@ from app.notifications.dependencies import get_status_change_notifier
 from app.notifications.service import StatusChangeNotifier
 from app.notifications.tasks import enqueue_status_change_notification
 from app.schemas.review import WorkflowReviewCreate, WorkflowReviewOut
+from app.services.idempotency import (
+    IdempotencyConflict,
+    IdempotencyInProgress,
+    cached_idempotency_response,
+    claim_idempotency_key,
+    complete_idempotency_key,
+)
 from app.services.submission_status import (
     InvalidStatusTransition,
     SubmissionStatus,
     transition_submission,
+)
+from app.services.transactions import (
+    DatabaseConflict,
+    commit_transaction,
+    flush_transaction,
 )
 
 router = APIRouter(
@@ -34,6 +47,12 @@ def review_submission(
     review: WorkflowReviewCreate,
     request: Request,
     background_tasks: BackgroundTasks,
+    idempotency_key: str | None = Header(
+        default=None,
+        alias="Idempotency-Key",
+        min_length=1,
+        max_length=200,
+    ),
     db: Session = Depends(get_db),
     reviewer: User = Depends(get_current_user),
     notifier: StatusChangeNotifier = Depends(get_status_change_notifier),
@@ -42,13 +61,37 @@ def review_submission(
     if not reviewer.has_permission(permission):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
-    record = db.get(ParliamentaryRecord, record_id)
+    try:
+        idempotency = claim_idempotency_key(
+            db,
+            scope=f"submission:workflow-review:{reviewer.id}",
+            key=idempotency_key,
+            payload={
+                "record_id": str(record_id),
+                **review.model_dump(mode="json"),
+            },
+            user_id=reviewer.id,
+        )
+    except (IdempotencyConflict, IdempotencyInProgress) as error:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    cached_response = cached_idempotency_response(idempotency)
+    if cached_response is not None:
+        return WorkflowReviewOut.model_validate(cached_response)
+
+    record = db.scalar(
+        select(ParliamentaryRecord)
+        .where(ParliamentaryRecord.id == record_id)
+        .with_for_update()
+    )
     if not record:
+        db.rollback()
         raise HTTPException(status_code=404, detail="Record not found")
     old_status = record.status
     try:
         transition_submission(record, next_status)
     except InvalidStatusTransition as error:
+        db.rollback()
         raise HTTPException(
             status_code=409,
             detail=str(error),
@@ -61,7 +104,13 @@ def review_submission(
         reviewer_id=reviewer.id,
     )
     db.add(decision)
-    db.flush()
+    try:
+        flush_transaction(
+            db,
+            conflict_message="The workflow state changed in another operation",
+        )
+    except DatabaseConflict as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
     add_audit_log(
         db,
         user_id=reviewer.id,
@@ -71,8 +120,30 @@ def review_submission(
         details=f"{review.action}: {next_status.value}",
         ip_address=request_ip(request),
     )
-    db.commit()
-    db.refresh(decision)
+    response = WorkflowReviewOut(
+        id=decision.id,
+        record_id=decision.record_id,
+        action=decision.action,
+        status=next_status.value,
+        reviewer_id=decision.reviewer_id,
+        reviewer_name=reviewer.name,
+        notes=decision.notes,
+        created_at=decision.created_at,
+    )
+    complete_idempotency_key(
+        idempotency,
+        response_status=201,
+        response_body=response.model_dump(mode="json"),
+        resource_type="workflow_decision",
+        resource_id=str(decision.id),
+    )
+    try:
+        commit_transaction(
+            db,
+            conflict_message="The workflow state changed in another operation",
+        )
+    except DatabaseConflict as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
     enqueue_status_change_notification(
         background_tasks,
         notifier,
@@ -83,14 +154,4 @@ def review_submission(
         old_status=old_status,
         new_status=record.status,
     )
-
-    return WorkflowReviewOut(
-        id=decision.id,
-        record_id=decision.record_id,
-        action=decision.action,
-        status=next_status.value,
-        reviewer_id=decision.reviewer_id,
-        reviewer_name=reviewer.name,
-        notes=decision.notes,
-        created_at=decision.created_at,
-    )
+    return response

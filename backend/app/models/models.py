@@ -322,6 +322,19 @@ class SearchLog(Base):
 
 class ReviewDecision(Base):
     __tablename__ = "review_decisions"
+    __table_args__ = (
+        CheckConstraint(
+            "(decision = 'Clear (New)' AND similar_record_id IS NULL "
+            "AND is_duplicate = false) OR "
+            "(decision IN ('Duplicate', 'Substantially Similar') "
+            "AND similar_record_id IS NOT NULL AND is_duplicate = true)",
+            name="review_decisions_relationship_check",
+        ),
+        CheckConstraint(
+            "similar_record_id IS NULL OR record_id <> similar_record_id",
+            name="review_decisions_distinct_records",
+        ),
+    )
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     record_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), ForeignKey("parliamentary_records.id"))

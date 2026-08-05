@@ -1,8 +1,17 @@
 from hashlib import sha256
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
-from sqlalchemy import select
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+    status,
+)
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -39,11 +48,23 @@ from app.similarity.embeddings import EmbeddingGenerator
 from app.similarity.presentation import SimilarityResultFormatter
 from app.similarity.previously_addressed import PreviouslyAddressedChecker
 from app.similarity.related_items import RelatedItemLinker
+from app.services.idempotency import (
+    IdempotencyConflict,
+    IdempotencyInProgress,
+    cached_idempotency_response,
+    claim_idempotency_key,
+    complete_idempotency_key,
+)
 from app.services.similarity import find_previously_addressed_candidates
 from app.services.submission_status import (
     InvalidStatusTransition,
     SubmissionStatus,
     transition_submission,
+)
+from app.services.transactions import (
+    DatabaseConflict,
+    commit_transaction,
+    flush_transaction,
 )
 
 router = APIRouter(prefix="/submissions", tags=["submissions"])
@@ -51,31 +72,79 @@ router = APIRouter(prefix="/submissions", tags=["submissions"])
 
 @router.get("/mine", response_model=list[SubmissionRecordOut])
 def my_submissions(
+    cursor: UUID | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=100),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> list[ParliamentaryRecord]:
+    query = (
+        select(ParliamentaryRecord)
+        .where(ParliamentaryRecord.submitted_by == user.id)
+        .order_by(
+            ParliamentaryRecord.created_at.desc(),
+            ParliamentaryRecord.id.desc(),
+        )
+        .limit(limit)
+    )
+    if cursor is not None:
+        cursor_record = db.scalar(
+            select(ParliamentaryRecord).where(
+                ParliamentaryRecord.id == cursor,
+                ParliamentaryRecord.submitted_by == user.id,
+            )
+        )
+        if cursor_record is None:
+            raise HTTPException(status_code=404, detail="Submission cursor not found")
+        query = query.where(
+            or_(
+                ParliamentaryRecord.created_at < cursor_record.created_at,
+                and_(
+                    ParliamentaryRecord.created_at == cursor_record.created_at,
+                    ParliamentaryRecord.id < cursor_record.id,
+                ),
+            )
+        )
     return list(
-        db.scalars(
-            select(ParliamentaryRecord)
-            .where(ParliamentaryRecord.submitted_by == user.id)
-            .order_by(ParliamentaryRecord.created_at.desc())
-        ).all()
+        db.scalars(query).all()
     )
 
 
 @router.get("/review-queue", response_model=list[SubmissionRecordOut])
 def review_queue(
+    cursor: UUID | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=100),
     db: Session = Depends(get_db),
     reviewer: User = Depends(require_permission("review_submission")),
 ) -> list[ParliamentaryRecord]:
-    return list(
-        db.scalars(
-            select(ParliamentaryRecord)
-            .where(
-                ParliamentaryRecord.status == SubmissionStatus.UNDER_REVIEW.value
+    query = (
+        select(ParliamentaryRecord)
+        .where(ParliamentaryRecord.status == SubmissionStatus.UNDER_REVIEW.value)
+        .order_by(
+            ParliamentaryRecord.created_at.asc(),
+            ParliamentaryRecord.id.asc(),
+        )
+        .limit(limit)
+    )
+    if cursor is not None:
+        cursor_record = db.scalar(
+            select(ParliamentaryRecord).where(
+                ParliamentaryRecord.id == cursor,
+                ParliamentaryRecord.status == SubmissionStatus.UNDER_REVIEW.value,
             )
-            .order_by(ParliamentaryRecord.created_at.asc())
-        ).all()
+        )
+        if cursor_record is None:
+            raise HTTPException(status_code=404, detail="Review cursor not found")
+        query = query.where(
+            or_(
+                ParliamentaryRecord.created_at > cursor_record.created_at,
+                and_(
+                    ParliamentaryRecord.created_at == cursor_record.created_at,
+                    ParliamentaryRecord.id > cursor_record.id,
+                ),
+            )
+        )
+    return list(
+        db.scalars(query).all()
     )
 
 
@@ -140,6 +209,12 @@ def check_submission_similarity(
 def create_submission(
     submission: SubmissionCreate,
     request: Request,
+    idempotency_key: str | None = Header(
+        default=None,
+        alias="Idempotency-Key",
+        min_length=1,
+        max_length=200,
+    ),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     duplicate_checker: DuplicateChecker = Depends(get_duplicate_checker),
@@ -152,18 +227,42 @@ def create_submission(
         get_similarity_result_formatter
     ),
 ) -> SubmissionResponse:
-    if submission.item_type == "Question" and not user.has_permission("submit_question"):
+    if submission.item_type == "Question" and not user.has_permission(
+        "submit_question"
+    ):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
     if submission.item_type == "Motion" and not user.has_permission("submit_motion"):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
+    try:
+        idempotency = claim_idempotency_key(
+            db,
+            scope=f"submission:create:{user.id}",
+            key=idempotency_key,
+            payload=submission.model_dump(mode="json"),
+            user_id=user.id,
+        )
+    except (IdempotencyConflict, IdempotencyInProgress) as error:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    cached_response = cached_idempotency_response(idempotency)
+    if cached_response is not None:
+        return SubmissionResponse.model_validate(cached_response)
+
     session = db.execute(
-        select(ParliamentarySession).where(ParliamentarySession.id == submission.session_id)
+        select(ParliamentarySession).where(
+            ParliamentarySession.id == submission.session_id
+        )
     ).scalars().first()
     if not session:
+        db.rollback()
         raise HTTPException(status_code=404, detail="Parliamentary session not found")
     if session.status not in {"Active", "Upcoming"}:
-        raise HTTPException(status_code=400, detail="Submissions can only be added to active or upcoming sessions")
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail="Submissions can only be added to active or upcoming sessions",
+        )
 
     duplicate_result = duplicate_checker.check(
         subject=submission.subject,
@@ -196,6 +295,7 @@ def create_submission(
             matches=result_formatter.format(duplicate_result.matches),
             previously_addressed=addressed_matches,
         )
+        db.rollback()
         raise HTTPException(
             status_code=409,
             detail={
@@ -230,7 +330,13 @@ def create_submission(
     )
     transition_submission(record, SubmissionStatus.UNDER_REVIEW)
     db.add(record)
-    db.flush()
+    try:
+        flush_transaction(
+            db,
+            conflict_message="The submission conflicts with another committed change",
+        )
+    except DatabaseConflict as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
     content_hash = sha256(search_text.encode("utf-8")).hexdigest()
     enqueue_outbox_job(
         db,
@@ -258,11 +364,8 @@ def create_submission(
         details=f"{record.item_type}: {record.subject}",
         ip_address=request_ip(request),
     )
-    db.commit()
-    db.refresh(record)
-
     candidates = find_previously_addressed_candidates(db, record=record, user=user, limit=5)
-    return SubmissionResponse(
+    response = SubmissionResponse(
         record=record,
         candidates=[
             SearchResultOut(
@@ -277,6 +380,21 @@ def create_submission(
         ai_degraded=bool(ai_warnings),
         warnings=ai_warnings,
     )
+    complete_idempotency_key(
+        idempotency,
+        response_status=status.HTTP_201_CREATED,
+        response_body=response.model_dump(mode="json"),
+        resource_type="parliamentary_record",
+        resource_id=str(record.id),
+    )
+    try:
+        commit_transaction(
+            db,
+            conflict_message="The submission conflicts with another committed change",
+        )
+    except DatabaseConflict as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    return response
 
 
 @router.post("/{record_id}/submit", response_model=SubmissionRecordOut)
@@ -288,7 +406,11 @@ def resubmit_draft(
     user: User = Depends(get_current_user),
     notifier: StatusChangeNotifier = Depends(get_status_change_notifier),
 ) -> ParliamentaryRecord:
-    record = db.get(ParliamentaryRecord, record_id)
+    record = db.scalar(
+        select(ParliamentaryRecord)
+        .where(ParliamentaryRecord.id == record_id)
+        .with_for_update()
+    )
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
     if record.submitted_by != user.id:
@@ -345,7 +467,11 @@ def update_draft(
     user: User = Depends(get_current_user),
     embedding_generator: EmbeddingGenerator = Depends(get_embedding_generator),
 ) -> ParliamentaryRecord:
-    record = db.get(ParliamentaryRecord, record_id)
+    record = db.scalar(
+        select(ParliamentaryRecord)
+        .where(ParliamentaryRecord.id == record_id)
+        .with_for_update()
+    )
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
     if record.submitted_by != user.id:

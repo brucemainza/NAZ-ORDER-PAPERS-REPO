@@ -177,6 +177,35 @@ def test_ai_review_uses_established_decision_vocabulary(client, db_session):
     assert saved.is_duplicate is True
 
 
+def test_ai_review_idempotency_replays_one_human_decision(client, db_session):
+    record = _record(db_session, code="AI-IDEMPOTENT-RECORD")
+    similar = _record(db_session, status="Archived", code="AI-IDEMPOTENT-SIMILAR")
+    reviewer = _user(db_session, "EMP-AI-IDEMPOTENT", "review_submission")
+    headers = {
+        **_headers(db_session, reviewer),
+        "Idempotency-Key": "ai-review-001",
+    }
+    payload = {
+        "record_id": str(record.id),
+        "similar_record_id": str(similar.id),
+        "decision": "Duplicate",
+        "notes": "Confirmed once",
+    }
+
+    first = client.post("/ai/review", json=payload, headers=headers)
+    replay = client.post("/ai/review", json=payload, headers=headers)
+    conflict = client.post(
+        "/ai/review",
+        json={**payload, "notes": "Changed decision payload"},
+        headers=headers,
+    )
+
+    assert first.status_code == replay.status_code == 200
+    assert first.json() == replay.json()
+    assert conflict.status_code == 409
+    assert db_session.query(ReviewDecision).count() == 1
+
+
 def test_async_explanation_can_be_created_and_polled(client, db_session):
     record = _record(db_session, code="AI-ASYNC")
     reviewer = _user(db_session, "EMP-AI-ASYNC", "review_submission")

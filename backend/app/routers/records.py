@@ -2,7 +2,7 @@ from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
@@ -29,12 +29,20 @@ def list_records(
     member: str | None = Query(default=None),
     ministry: str | None = Query(default=None),
     query_text: str | None = Query(default=None, alias="query_text"),
+    cursor: UUID | None = Query(default=None),
     limit: int = Query(default=15, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> list[RecordListOut]:
-    query = select(ParliamentaryRecord).options(joinedload(ParliamentaryRecord.session)).order_by(ParliamentaryRecord.created_at.desc())
+    query = (
+        select(ParliamentaryRecord)
+        .options(joinedload(ParliamentaryRecord.session))
+        .order_by(
+            ParliamentaryRecord.created_at.desc(),
+            ParliamentaryRecord.id.desc(),
+        )
+    )
     query = restrict_draft_visibility(query, user)
     query = restrict_archive_visibility(query, user, "view_archive")
 
@@ -81,6 +89,20 @@ def list_records(
                 ParliamentaryRecord.member.ilike(search_term),
                 ParliamentaryRecord.ministry.ilike(search_term),
                 ParliamentaryRecord.full_text.ilike(search_term),
+            )
+        )
+
+    if cursor is not None:
+        cursor_record = db.get(ParliamentaryRecord, cursor)
+        if cursor_record is None or not can_view_record(cursor_record, user):
+            raise HTTPException(status_code=404, detail="Record cursor not found")
+        query = query.where(
+            or_(
+                ParliamentaryRecord.created_at < cursor_record.created_at,
+                and_(
+                    ParliamentaryRecord.created_at == cursor_record.created_at,
+                    ParliamentaryRecord.id < cursor_record.id,
+                ),
             )
         )
 

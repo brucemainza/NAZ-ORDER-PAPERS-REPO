@@ -213,6 +213,46 @@ def test_response_requires_scheduled_question_without_existing_response(
     assert repeated.status_code == 409
 
 
+def test_response_idempotency_replays_original_and_rejects_changed_payload(
+    client,
+    db_session,
+):
+    models = importlib.import_module("app.models")
+    clerk = _user(
+        db_session,
+        prefix="RESPONSE-IDEMPOTENT",
+        permission_codes=("record_response",),
+    )
+    question = _question()
+    db_session.add(question)
+    db_session.commit()
+    headers = {
+        **_headers(db_session, clerk),
+        "Idempotency-Key": "response-recording-001",
+    }
+
+    first = client.post(
+        f"/records/{question.id}/response",
+        json=_payload(),
+        headers=headers,
+    )
+    replay = client.post(
+        f"/records/{question.id}/response",
+        json=_payload(),
+        headers=headers,
+    )
+    conflict = client.post(
+        f"/records/{question.id}/response",
+        json={**_payload(), "response_date": "2026-09-15"},
+        headers=headers,
+    )
+
+    assert first.status_code == replay.status_code == 201
+    assert first.json() == replay.json()
+    assert conflict.status_code == 409
+    assert db_session.query(models.QuestionResponse).count() == 1
+
+
 class FakeEmailProvider(EmailProvider):
     def __init__(self):
         self.calls = []

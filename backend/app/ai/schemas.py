@@ -2,7 +2,7 @@ import datetime as dt
 from uuid import UUID
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class SimilaritySearchRequest(BaseModel):
@@ -98,6 +98,22 @@ class AIReviewSubmission(BaseModel):
     similar_record_id: UUID | None = None
     decision: Literal["Clear (New)", "Duplicate", "Substantially Similar"]
     notes: str | None = None
+
+    @model_validator(mode="after")
+    def validate_related_record(self):
+        needs_related_record = self.decision in {
+            "Duplicate",
+            "Substantially Similar",
+        }
+        if needs_related_record and self.similar_record_id is None:
+            raise ValueError(
+                "A related record is required for duplicate or similar decisions"
+            )
+        if not needs_related_record and self.similar_record_id is not None:
+            raise ValueError("Clear decisions cannot reference a related record")
+        if self.similar_record_id == self.record_id:
+            raise ValueError("A record cannot be marked similar to itself")
+        return self
 
 
 class AIHealthResponse(BaseModel):

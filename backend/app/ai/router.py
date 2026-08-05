@@ -1,7 +1,16 @@
 from hashlib import sha256
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    Header,
+    HTTPException,
+    Request,
+    Response,
+    status,
+)
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.ai.dependencies import get_ai_service, get_ai_settings, get_embedding_provider
@@ -22,6 +31,18 @@ from app.deps import add_audit_log, get_current_user, request_ip, require_permis
 from app.models import AIInferenceRun, ParliamentaryRecord, ReviewDecision, User
 from app.jobs.queue import enqueue_outbox_job
 from app.services.record_visibility import can_view_record
+from app.services.idempotency import (
+    IdempotencyConflict,
+    IdempotencyInProgress,
+    cached_idempotency_response,
+    claim_idempotency_key,
+    complete_idempotency_key,
+)
+from app.services.transactions import (
+    DatabaseConflict,
+    commit_transaction,
+    flush_transaction,
+)
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
@@ -318,15 +339,42 @@ def reindex_all(
 def submit_ai_review(
     review: AIReviewSubmission,
     request: Request,
+    idempotency_key: str | None = Header(
+        default=None,
+        alias="Idempotency-Key",
+        min_length=1,
+        max_length=200,
+    ),
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("review_submission")),
 ) -> dict:
-    record = db.get(ParliamentaryRecord, review.record_id)
+    try:
+        idempotency = claim_idempotency_key(
+            db,
+            scope=f"ai-review:create:{user.id}",
+            key=idempotency_key,
+            payload=review.model_dump(mode="json"),
+            user_id=user.id,
+        )
+    except (IdempotencyConflict, IdempotencyInProgress) as error:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    cached_response = cached_idempotency_response(idempotency)
+    if cached_response is not None:
+        return cached_response
+
+    record = db.scalar(
+        select(ParliamentaryRecord)
+        .where(ParliamentaryRecord.id == review.record_id)
+        .with_for_update()
+    )
     if record is None:
+        db.rollback()
         raise HTTPException(status_code=404, detail="Record not found")
     if review.similar_record_id is not None:
         similar = db.get(ParliamentaryRecord, review.similar_record_id)
         if similar is None:
+            db.rollback()
             raise HTTPException(status_code=404, detail="Similar record not found")
 
     decision = ReviewDecision(
@@ -338,7 +386,13 @@ def submit_ai_review(
         is_duplicate=review.decision in {"Duplicate", "Substantially Similar"},
     )
     db.add(decision)
-    db.flush()
+    try:
+        flush_transaction(
+            db,
+            conflict_message="The AI review conflicts with another committed change",
+        )
+    except DatabaseConflict as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
     add_audit_log(
         db,
         user_id=user.id,
@@ -348,5 +402,19 @@ def submit_ai_review(
         details=review.decision,
         ip_address=request_ip(request),
     )
-    db.commit()
-    return {"review_id": decision.id}
+    response_body = {"review_id": str(decision.id)}
+    complete_idempotency_key(
+        idempotency,
+        response_status=200,
+        response_body=response_body,
+        resource_type="review_decision",
+        resource_id=str(decision.id),
+    )
+    try:
+        commit_transaction(
+            db,
+            conflict_message="The AI review conflicts with another committed change",
+        )
+    except DatabaseConflict as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    return response_body
