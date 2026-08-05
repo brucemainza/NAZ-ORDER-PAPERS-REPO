@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class OllamaEmbeddingProvider(EmbeddingProvider):
     """Embedding provider that calls a local Ollama instance.
 
-    Uses the /api/embeddings endpoint so the same Ollama process can serve
+    Uses the batch-capable /api/embed endpoint so the same Ollama process can serve
     both embeddings and generation models. This keeps the stack local-only
     and government-network friendly.
     """
@@ -31,6 +31,7 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
     ) -> None:
         self._base_url = settings.ollama_base_url.rstrip("/")
         self._model = settings.ollama_embedding_model
+        self._model_digest = settings.ollama_embedding_model_digest
         self._dimension = settings.ai_embedding_dimension
         self._max_retries = settings.ai_max_retries
         self._circuit_break_seconds = settings.ai_circuit_break_seconds
@@ -54,6 +55,25 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
     @property
     def model_name(self) -> str:
         return self._model
+
+    @property
+    def model_digest(self) -> str:
+        if self._model_digest:
+            return self._model_digest
+        try:
+            response = self._client.get("/api/tags")
+            response.raise_for_status()
+            for model in response.json().get("models", []):
+                if model.get("name") == self._model or model.get("model") == self._model:
+                    digest = model.get("digest")
+                    if isinstance(digest, str) and digest.strip():
+                        self._model_digest = digest.strip()
+                        return self._model_digest
+        except (httpx.RequestError, httpx.HTTPStatusError, ValueError) as exc:
+            raise RuntimeError("Could not resolve the embedding model digest") from exc
+        raise RuntimeError(
+            f"Ollama did not report an exact digest for embedding model {self._model}"
+        )
 
     def embed_query(self, text: str) -> list[float]:
         results = self.embed_documents([text])

@@ -11,8 +11,10 @@ from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app.ai.dependencies import get_embedding_provider
+from app.ai.indexing.chunks import ChunkIndexingService
 from app.ai.interfaces import EmbeddingProvider
 from app.database import SessionLocal
+from app.config import get_settings
 from app.email.factory import get_email_provider
 from app.models import BackgroundJob, OutboxEvent, ParliamentaryRecord
 from app.notifications.service import NotificationService, StatusChangeNotifier
@@ -109,15 +111,25 @@ def _run_embedding_job(
         # A newer edit superseded this request; its own transaction enqueues a
         # versioned job, so the stale job can complete without overwriting it.
         return
-    if record.embedding is not None and record.embedding_model == provider.model_name:
-        return
-    vector = provider.embed_query(text)
-    if len(vector) != provider.dimension:
-        raise RuntimeError(
-            f"embedding dimension mismatch: expected {provider.dimension}, got {len(vector)}"
-        )
-    record.embedding = vector
-    record.embedding_model = provider.model_name
+    if job.job_type != "index_record_chunks" and not (
+        record.embedding is not None and record.embedding_model == provider.model_name
+    ):
+        vector = provider.embed_query(text)
+        if len(vector) != provider.dimension:
+            raise RuntimeError(
+                f"embedding dimension mismatch: expected {provider.dimension}, got {len(vector)}"
+            )
+        record.embedding = vector
+        record.embedding_model = provider.model_name
+
+    settings = get_settings()
+    ChunkIndexingService(
+        db,
+        provider,
+        max_chars=settings.ai_chunk_max_chars,
+        overlap_chars=settings.ai_chunk_overlap_chars,
+        preprocessing_version=settings.ai_preprocessing_version,
+    ).index_record(record)
 
 
 def _run_notification_job(
@@ -146,7 +158,7 @@ def run_job(
     embedding_provider: EmbeddingProvider | None = None,
     notifier: StatusChangeNotifier | None = None,
 ) -> None:
-    if job.job_type in {"embed_record", "reindex_record"}:
+    if job.job_type in {"embed_record", "reindex_record", "index_record_chunks"}:
         _run_embedding_job(db, job, embedding_provider or get_embedding_provider())
     elif job.job_type == "notification":
         _run_notification_job(

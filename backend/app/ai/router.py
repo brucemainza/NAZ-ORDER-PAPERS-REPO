@@ -1,9 +1,11 @@
+from hashlib import sha256
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from app.ai.dependencies import get_ai_service, get_embedding_provider
+from app.ai.dependencies import get_ai_service, get_ai_settings, get_embedding_provider
+from app.ai.indexing.chunks import chunk_index_coverage, enqueue_chunk_backfill
 from app.ai.schemas import (
     AIExplainRequest,
     AIExplanation,
@@ -16,6 +18,7 @@ from app.ai.service import AISimilarityService
 from app.database import get_db
 from app.deps import add_audit_log, get_current_user, request_ip, require_permission
 from app.models import ParliamentaryRecord, ReviewDecision, User
+from app.jobs.queue import enqueue_outbox_job
 from app.services.record_visibility import can_view_record
 
 router = APIRouter(prefix="/ai", tags=["ai"])
@@ -115,7 +118,31 @@ def ai_explain(
     return explanation
 
 
-@router.post("/index/{record_id}")
+@router.get("/index/coverage")
+def index_coverage(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("review_submission")),
+    embedding_provider=Depends(get_embedding_provider),
+    settings=Depends(get_ai_settings),
+) -> dict:
+    coverage = chunk_index_coverage(
+        db,
+        model=embedding_provider.model_name,
+        model_digest=embedding_provider.model_digest,
+        dimension=embedding_provider.dimension,
+        preprocessing_version=settings.ai_preprocessing_version,
+    )
+    return {
+        "eligible_records": coverage.eligible_records,
+        "indexed_records": coverage.indexed_records,
+        "coverage_percent": coverage.coverage_percent,
+        "model": embedding_provider.model_name,
+        "model_digest": embedding_provider.model_digest,
+        "preprocessing_version": settings.ai_preprocessing_version,
+    }
+
+
+@router.post("/index/{record_id}", status_code=202)
 def index_record(
     record_id: UUID,
     request: Request,
@@ -130,8 +157,25 @@ def index_record(
     from app.similarity.duplicate_detection import build_similarity_text
 
     text = build_similarity_text(record.subject, record.full_text)
-    record.embedding = embedding_provider.embed_query(text)
-    record.embedding_model = embedding_provider.model_name
+    content_hash = sha256(text.encode("utf-8")).hexdigest()
+    job = enqueue_outbox_job(
+        db,
+        job_type="embed_record",
+        payload={
+            "record_id": str(record.id),
+            "record_version": record.version,
+            "content_hash": content_hash,
+            "model": embedding_provider.model_name,
+            "model_digest": embedding_provider.model_digest,
+        },
+        deduplication_key=(
+            f"embed_record:{record.id}:{record.version}:{content_hash}:"
+            f"{embedding_provider.model_digest}"
+        ),
+        aggregate_type="parliamentary_record",
+        aggregate_id=str(record.id),
+        event_type="record.indexing_requested",
+    )
     add_audit_log(
         db,
         user_id=user.id,
@@ -142,20 +186,53 @@ def index_record(
         ip_address=request_ip(request),
     )
     db.commit()
-    return {"record_id": record_id, "indexed": True, "model": embedding_provider.model_name}
+    return {
+        "record_id": record_id,
+        "job_id": job.id,
+        "indexed": False,
+        "queued": True,
+        "model": embedding_provider.model_name,
+        "model_digest": embedding_provider.model_digest,
+    }
 
 
 @router.post("/reindex")
 def reindex_all(
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("review_submission")),
+    after_id: UUID | None = None,
+    limit: int = 100,
+    embedding_provider=Depends(get_embedding_provider),
+    settings=Depends(get_ai_settings),
 ) -> dict:
-    # Full batch re-indexing is delegated to scripts/reindex_records.py for
-    # memory and latency control. This endpoint just validates permission.
-    raise HTTPException(
-        status_code=501,
-        detail="Use scripts/reindex_records.py for batch re-indexing",
+    limit = max(1, min(limit, 500))
+    result = enqueue_chunk_backfill(
+        db,
+        model=embedding_provider.model_name,
+        model_digest=embedding_provider.model_digest,
+        preprocessing_version=settings.ai_preprocessing_version,
+        after_id=after_id,
+        limit=limit,
     )
+    add_audit_log(
+        db,
+        user_id=user.id,
+        action="ai_reindex",
+        entity_type="ai_index",
+        entity_id=str(result.next_cursor) if result.next_cursor else None,
+        details=f"queued={result.queued};complete={result.complete}",
+        ip_address=request_ip(request),
+    )
+    db.commit()
+    return {
+        "queued": result.queued,
+        "next_cursor": result.next_cursor,
+        "complete": result.complete,
+        "model": embedding_provider.model_name,
+        "model_digest": embedding_provider.model_digest,
+        "preprocessing_version": settings.ai_preprocessing_version,
+    }
 
 
 @router.post("/review")

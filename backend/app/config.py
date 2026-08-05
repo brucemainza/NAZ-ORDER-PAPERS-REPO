@@ -21,6 +21,7 @@ class Settings:
     # AI / local Ollama settings
     ollama_base_url: str
     ollama_embedding_model: str
+    ollama_embedding_model_digest: str | None
     ollama_llm_model: str
     ai_embedding_dimension: int
     ai_rrf_k: int
@@ -33,6 +34,9 @@ class Settings:
     ai_connect_timeout: float
     ai_max_retries: int
     ai_circuit_break_seconds: float
+    ai_chunk_max_chars: int
+    ai_chunk_overlap_chars: int
+    ai_preprocessing_version: str
 
     def __init__(self) -> None:
         self.database_url = getenv(
@@ -61,6 +65,9 @@ class Settings:
         self.ollama_embedding_model = getenv(
             "OLLAMA_EMBEDDING_MODEL", "embeddinggemma:300m"
         )
+        self.ollama_embedding_model_digest = (
+            getenv("OLLAMA_EMBEDDING_MODEL_DIGEST", "").strip() or None
+        )
         self.ollama_llm_model = getenv("OLLAMA_LLM_MODEL", "qwen3.5:4b")
         self.ai_embedding_dimension = int(getenv("AI_EMBEDDING_DIMENSION", "768"))
         self.ai_rrf_k = int(getenv("AI_RRF_K", "60"))
@@ -77,6 +84,13 @@ class Settings:
         self.ai_circuit_break_seconds = float(
             getenv("AI_CIRCUIT_BREAK_SECONDS", "30")
         )
+        self.ai_chunk_max_chars = int(getenv("AI_CHUNK_MAX_CHARS", "1800"))
+        self.ai_chunk_overlap_chars = int(
+            getenv("AI_CHUNK_OVERLAP_CHARS", "240")
+        )
+        self.ai_preprocessing_version = getenv(
+            "AI_PREPROCESSING_VERSION", "chunks-v1"
+        ).strip()
 
 
 @lru_cache

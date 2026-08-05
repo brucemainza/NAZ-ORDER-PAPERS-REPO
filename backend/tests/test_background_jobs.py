@@ -175,6 +175,7 @@ def test_embedding_handler_is_idempotent_for_same_model(db_session):
 
     class Provider:
         model_name = "model-v1"
+        model_digest = "sha256:model-v1"
         dimension = 768
 
         def __init__(self):
@@ -183,6 +184,9 @@ def test_embedding_handler_is_idempotent_for_same_model(db_session):
         def embed_query(self, _text):
             self.calls += 1
             return [0.25] * 768
+
+        def embed_documents(self, texts):
+            return [[0.25] * 768 for _ in texts]
 
     provider = Provider()
     run_job(db_session, job, embedding_provider=provider)
@@ -206,6 +210,7 @@ def test_dimension_mismatch_marks_indexing_job_retryable(db_session):
 
     class WrongDimensionProvider:
         model_name = "broken-model"
+        model_digest = "sha256:broken"
         dimension = 768
 
         def embed_query(self, _text):

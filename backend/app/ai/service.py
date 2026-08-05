@@ -70,7 +70,19 @@ class AISimilarityService:
         warnings: list[str] = []
         try:
             query_embedding = self._embedding_provider.embed_query(request.query_text)
-            semantic = PgVectorSemanticRetriever(self._db, self._user)
+            model_digest = getattr(
+                self._embedding_provider,
+                "model_digest",
+                self._embedding_provider.model_name,
+            )
+            semantic = PgVectorSemanticRetriever(
+                self._db,
+                self._user,
+                model=self._embedding_provider.model_name,
+                model_digest=model_digest,
+                dimension=self._embedding_provider.dimension,
+                preprocessing_version=self._settings.ai_preprocessing_version,
+            )
             semantic_matches = semantic.search(
                 request,
                 query_embedding,
