@@ -66,6 +66,15 @@ Services:
 | PostgreSQL | localhost:5433 |
 | Portainer | http://localhost:9000 |
 
+### Local Ollama connectivity
+
+The application uses the standard Ollama API port `11434`. The backend and
+worker connect to `http://host.docker.internal:11434`. On Linux, Ollama must
+listen on an address reachable from Docker; bind it to the Docker bridge
+(`172.17.0.1:11434` on the default engine) or set
+`OLLAMA_HOST=0.0.0.0:11434` and restrict port `11434` to Docker bridge traffic
+with the host firewall. Do not expose the Ollama API to untrusted networks.
+
 ## Seeded Login
 
 | Employee ID | Name | Legacy display role | Status |
