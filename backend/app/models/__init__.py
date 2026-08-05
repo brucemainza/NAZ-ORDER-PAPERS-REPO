@@ -14,6 +14,7 @@ from .models import (
     SearchLog,
     User,
     UserSession,
+    WorkerHeartbeat,
     WorkflowDecision,
     related_item_links,
     role_permissions,

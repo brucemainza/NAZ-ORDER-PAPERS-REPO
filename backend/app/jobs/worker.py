@@ -8,6 +8,7 @@ from time import sleep
 from uuid import UUID
 
 from sqlalchemy import and_, or_, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.ai.dependencies import get_embedding_provider
@@ -18,8 +19,16 @@ from app.ai.interfaces import EmbeddingProvider
 from app.database import SessionLocal
 from app.config import get_settings
 from app.email.factory import get_email_provider
-from app.models import AIInferenceRun, BackgroundJob, OutboxEvent, ParliamentaryRecord
+from app.models import (
+    AIInferenceRun,
+    BackgroundJob,
+    OutboxEvent,
+    ParliamentaryRecord,
+    WorkerHeartbeat,
+)
 from app.notifications.service import NotificationService, StatusChangeNotifier
+from app.jobs.queue import queue_snapshot
+from app.observability.metrics import update_queue_metrics
 from app.services.archiving import archive_ended_session_records
 from app.similarity.duplicate_detection import build_similarity_text
 
@@ -27,6 +36,33 @@ logger = logging.getLogger(__name__)
 
 LOCK_TIMEOUT = timedelta(minutes=5)
 MAX_BACKOFF_SECONDS = 3600
+
+
+def record_worker_heartbeat(
+    db: Session,
+    *,
+    worker_id: str,
+    now: datetime | None = None,
+) -> None:
+    observed_at = now or datetime.now(timezone.utc)
+    statement = (
+        insert(WorkerHeartbeat)
+        .values(
+            worker_id=worker_id,
+            status="running",
+            last_seen_at=observed_at,
+            details={"hostname": socket.gethostname()},
+        )
+        .on_conflict_do_update(
+            index_elements=["worker_id"],
+            set_={
+                "status": "running",
+                "last_seen_at": observed_at,
+                "metadata": {"hostname": socket.gethostname()},
+            },
+        )
+    )
+    db.execute(statement)
 
 
 def claim_jobs(
@@ -226,11 +262,14 @@ def process_claimed_job(
 
 def run_once(*, worker_id: str, limit: int = 10) -> int:
     with SessionLocal() as db:
+        record_worker_heartbeat(db, worker_id=worker_id)
         jobs = claim_jobs(db, worker_id=worker_id, limit=limit)
         ids = [job.id for job in jobs]
         db.commit()
     for job_id in ids:
         process_claimed_job(job_id)
+    with SessionLocal() as db:
+        update_queue_metrics(queue_snapshot(db))
     return len(ids)
 
 

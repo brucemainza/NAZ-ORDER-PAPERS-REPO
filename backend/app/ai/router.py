@@ -43,6 +43,7 @@ from app.services.transactions import (
     commit_transaction,
     flush_transaction,
 )
+from app.observability.metrics import AI_INDEX_COVERAGE
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
@@ -232,6 +233,7 @@ def index_coverage(
         dimension=embedding_provider.dimension,
         preprocessing_version=settings.ai_preprocessing_version,
     )
+    AI_INDEX_COVERAGE.set(coverage.coverage_percent)
     return {
         "eligible_records": coverage.eligible_records,
         "indexed_records": coverage.indexed_records,

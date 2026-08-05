@@ -181,15 +181,17 @@ def test_concurrent_workflow_actions_produce_one_valid_transition(db_session):
         "EMP-CONCURRENT-WORKFLOW",
         "approve_motion",
     )
+    record_id = record.id
+    reviewer_id = reviewer.id
     barrier = Barrier(2)
 
     def attempt_review():
         with Session(engine) as worker_db:
-            worker_reviewer = worker_db.get(User, reviewer.id)
+            worker_reviewer = worker_db.get(User, reviewer_id)
             barrier.wait()
             try:
                 response = review_submission(
-                    record_id=record.id,
+                    record_id=record_id,
                     review=WorkflowReviewCreate(action="Approve"),
                     request=Request(
                         {
@@ -214,7 +216,7 @@ def test_concurrent_workflow_actions_produce_one_valid_transition(db_session):
 
     assert outcomes == [201, 409]
     db_session.expire_all()
-    assert db_session.get(ParliamentaryRecord, record.id).status == "Approved"
+    assert db_session.get(ParliamentaryRecord, record_id).status == "Approved"
     assert db_session.query(WorkflowDecision).count() == 1
 
 

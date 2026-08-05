@@ -446,6 +446,27 @@ class OutboxEvent(Base):
     published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
 
+class WorkerHeartbeat(Base):
+    __tablename__ = "worker_heartbeats"
+
+    worker_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    status: Mapped[str] = mapped_column(
+        Text,
+        default="running",
+        server_default="running",
+    )
+    details: Mapped[Optional[dict]] = mapped_column("metadata", JSONB)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        index=True,
+    )
+
+
 class RecordChunk(Base):
     __tablename__ = "record_chunks"
     __table_args__ = (

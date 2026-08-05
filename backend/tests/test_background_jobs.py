@@ -12,7 +12,9 @@ from app.models import (
     OutboxEvent,
     ParliamentaryRecord,
     ParliamentarySession,
+    WorkerHeartbeat,
 )
+from app.jobs.worker import record_worker_heartbeat
 
 
 def _session(db):
@@ -242,3 +244,23 @@ def test_queue_snapshot_reports_actionable_depth(db_session):
     assert snapshot.pending == 1
     assert snapshot.dead_letter == 0
     assert snapshot.oldest_pending_seconds >= 0
+
+
+def test_worker_heartbeat_is_upserted_for_readiness(db_session):
+    observed_at = datetime(2026, 8, 5, 12, 0, tzinfo=timezone.utc)
+
+    record_worker_heartbeat(
+        db_session,
+        worker_id="worker-health-test",
+        now=observed_at,
+    )
+    record_worker_heartbeat(
+        db_session,
+        worker_id="worker-health-test",
+        now=observed_at + timedelta(seconds=5),
+    )
+    db_session.commit()
+
+    heartbeat = db_session.get(WorkerHeartbeat, "worker-health-test")
+    assert heartbeat.last_seen_at == observed_at + timedelta(seconds=5)
+    assert db_session.query(WorkerHeartbeat).count() == 1

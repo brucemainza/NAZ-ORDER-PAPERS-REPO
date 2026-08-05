@@ -53,6 +53,18 @@ class Settings:
     clamav_host: str
     clamav_port: int
     clamav_timeout: float
+    db_pool_size: int
+    db_max_overflow: int
+    db_pool_recycle_seconds: int
+    db_pool_timeout: float
+    db_statement_timeout_ms: int
+    log_level: str
+    log_json: bool
+    worker_stale_seconds: int
+    readiness_ai_timeout_seconds: float
+    otel_enabled: bool
+    otel_service_name: str
+    otel_exporter_otlp_endpoint: str | None
 
     def __init__(self) -> None:
         self.database_url = getenv(
@@ -149,6 +161,39 @@ class Settings:
         self.clamav_host = getenv("CLAMAV_HOST", "clamav").strip()
         self.clamav_port = int(getenv("CLAMAV_PORT", "3310"))
         self.clamav_timeout = float(getenv("CLAMAV_TIMEOUT", "10"))
+        self.db_pool_size = int(getenv("DB_POOL_SIZE", "10"))
+        self.db_max_overflow = int(getenv("DB_MAX_OVERFLOW", "20"))
+        self.db_pool_recycle_seconds = int(
+            getenv("DB_POOL_RECYCLE_SECONDS", "1800")
+        )
+        self.db_pool_timeout = float(getenv("DB_POOL_TIMEOUT", "30"))
+        self.db_statement_timeout_ms = int(
+            getenv("DB_STATEMENT_TIMEOUT_MS", "30000")
+        )
+        self.log_level = getenv("LOG_LEVEL", "INFO").strip().upper()
+        self.log_json = getenv("LOG_JSON", "true").strip().casefold() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        self.worker_stale_seconds = int(getenv("WORKER_STALE_SECONDS", "30"))
+        self.readiness_ai_timeout_seconds = float(
+            getenv("READINESS_AI_TIMEOUT_SECONDS", "1")
+        )
+        self.otel_enabled = getenv("OTEL_ENABLED", "false").strip().casefold() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        self.otel_service_name = getenv(
+            "OTEL_SERVICE_NAME",
+            "naz-order-papers-api",
+        ).strip()
+        self.otel_exporter_otlp_endpoint = (
+            getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "").strip() or None
+        )
 
 
 @lru_cache
