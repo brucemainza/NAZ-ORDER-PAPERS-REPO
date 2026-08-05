@@ -9,11 +9,13 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    String,
     Table,
     Text,
+    UniqueConstraint,
     func,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, UUID as PostgresUUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from pgvector.sqlalchemy import Vector
 
@@ -219,7 +221,14 @@ class ParliamentaryRecord(Base):
     sitting_date: Mapped[Optional[date]] = mapped_column(Date)
     embedding: Mapped[Optional[list[float]]] = mapped_column(Vector(768))
     embedding_model: Mapped[Optional[str]] = mapped_column(Text)
+    normalized_hash: Mapped[Optional[str]] = mapped_column(String(64), index=True)
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
 
     session: Mapped["ParliamentarySession"] = relationship(back_populates="records")
     submitter: Mapped[Optional["User"]] = relationship()
@@ -344,3 +353,149 @@ class AuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user: Mapped[Optional["User"]] = relationship()
+
+
+class BackgroundJob(Base):
+    __tablename__ = "background_jobs"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'running', 'retry', 'completed', 'dead_letter')",
+            name="background_jobs_status_check",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    job_type: Mapped[str] = mapped_column(Text, index=True)
+    deduplication_key: Mapped[str] = mapped_column(Text, unique=True)
+    payload: Mapped[dict] = mapped_column(JSONB, default=dict)
+    status: Mapped[str] = mapped_column(Text, default="pending", server_default="pending")
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    max_attempts: Mapped[int] = mapped_column(Integer, default=5, server_default="5")
+    next_attempt_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
+    locked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    lock_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    locked_by: Mapped[Optional[str]] = mapped_column(Text)
+    last_error: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+class OutboxEvent(Base):
+    __tablename__ = "outbox_events"
+
+    id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    aggregate_type: Mapped[str] = mapped_column(Text)
+    aggregate_id: Mapped[str] = mapped_column(Text, index=True)
+    event_type: Mapped[str] = mapped_column(Text, index=True)
+    payload: Mapped[dict] = mapped_column(JSONB, default=dict)
+    status: Mapped[str] = mapped_column(Text, default="pending", server_default="pending")
+    job_id: Mapped[Optional[UUID]] = mapped_column(
+        PostgresUUID(as_uuid=True), ForeignKey("background_jobs.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+class RecordChunk(Base):
+    __tablename__ = "record_chunks"
+    __table_args__ = (
+        UniqueConstraint(
+            "record_id",
+            "chunk_index",
+            "content_hash",
+            "embedding_model",
+            "model_digest",
+            "preprocessing_version",
+            name="uq_record_chunks_version",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    record_id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("parliamentary_records.id", ondelete="CASCADE"),
+        index=True,
+    )
+    chunk_index: Mapped[int] = mapped_column(Integer)
+    chunk_text: Mapped[str] = mapped_column(Text)
+    content_hash: Mapped[str] = mapped_column(String(64), index=True)
+    embedding: Mapped[Optional[list[float]]] = mapped_column(Vector(768))
+    embedding_model: Mapped[str] = mapped_column(Text)
+    model_digest: Mapped[str] = mapped_column(Text)
+    dimension: Mapped[int] = mapped_column(Integer)
+    preprocessing_version: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class AIInferenceRun(Base):
+    __tablename__ = "ai_inference_runs"
+
+    id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    run_type: Mapped[str] = mapped_column(Text, index=True)
+    user_id: Mapped[Optional[UUID]] = mapped_column(
+        PostgresUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
+    )
+    query_hash: Mapped[Optional[str]] = mapped_column(String(64), index=True)
+    evidence_ids: Mapped[Optional[List[UUID]]] = mapped_column(
+        ARRAY(PostgresUUID(as_uuid=True))
+    )
+    prompt_version: Mapped[Optional[str]] = mapped_column(Text)
+    model: Mapped[str] = mapped_column(Text)
+    model_digest: Mapped[Optional[str]] = mapped_column(Text)
+    request_metadata: Mapped[Optional[dict]] = mapped_column(JSONB)
+    result: Mapped[Optional[dict]] = mapped_column(JSONB)
+    outcome: Mapped[str] = mapped_column(Text, index=True)
+    latency_ms: Mapped[Optional[int]] = mapped_column(Integer)
+    error: Mapped[Optional[str]] = mapped_column(Text)
+    cache_key: Mapped[Optional[str]] = mapped_column(Text, unique=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+class IdempotencyKey(Base):
+    __tablename__ = "idempotency_keys"
+    __table_args__ = (
+        UniqueConstraint("scope", "key", name="uq_idempotency_scope_key"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    scope: Mapped[str] = mapped_column(Text)
+    key: Mapped[str] = mapped_column(Text)
+    request_hash: Mapped[str] = mapped_column(String(64))
+    response_status: Mapped[Optional[int]] = mapped_column(Integer)
+    response_body: Mapped[Optional[dict]] = mapped_column(JSONB)
+    resource_type: Mapped[Optional[str]] = mapped_column(Text)
+    resource_id: Mapped[Optional[str]] = mapped_column(Text)
+    user_id: Mapped[Optional[UUID]] = mapped_column(
+        PostgresUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))

@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.database import SessionLocal
-from app.db_compat import ensure_runtime_schema
+from app.db_compat import seed_runtime_authorization
 from app.ai import router as ai_router
 from app.routers import (
     audit,
@@ -60,7 +60,7 @@ app.include_router(ai_router.router)
 
 @app.on_event("startup")
 def startup() -> None:
-    ensure_runtime_schema()
+    seed_runtime_authorization()
     with SessionLocal() as db:
         archive_ended_session_records(db)
         db.commit()
