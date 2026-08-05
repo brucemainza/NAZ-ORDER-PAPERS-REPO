@@ -1,3 +1,4 @@
+import datetime as dt
 from uuid import UUID
 from typing import Literal
 
@@ -11,7 +12,12 @@ class SimilaritySearchRequest(BaseModel):
     session_id: UUID | None = None
     item_type: str | None = None
     status: str | None = None
+    date: dt.date | None = None
+    member: str | None = None
+    ministry: str | None = None
     exclude_ids: list[UUID] = Field(default_factory=list)
+    limit: int | None = Field(default=None, ge=1, le=100)
+    offset: int = Field(default=0, ge=0)
 
 
 class RecordMatch(BaseModel):

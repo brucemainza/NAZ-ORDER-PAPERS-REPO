@@ -5,17 +5,24 @@ from uuid import UUID, uuid4
 from sqlalchemy import (
     CheckConstraint,
     Column,
+    Computed,
     Date,
     DateTime,
     ForeignKey,
     Integer,
+    Index,
     String,
     Table,
     Text,
     UniqueConstraint,
     func,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID as PostgresUUID
+from sqlalchemy.dialects.postgresql import (
+    ARRAY,
+    JSONB,
+    TSVECTOR,
+    UUID as PostgresUUID,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from pgvector.sqlalchemy import Vector
 
@@ -203,6 +210,11 @@ class ParliamentaryRecord(Base):
             "'Rejected', 'Scheduled', 'Answered', 'Discussed', 'Archived')",
             name="parliamentary_records_status_check",
         ),
+        Index(
+            "idx_parliamentary_records_search_vector",
+            "search_vector",
+            postgresql_using="gin",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
@@ -228,6 +240,16 @@ class ParliamentaryRecord(Base):
         DateTime(timezone=True),
         server_default=func.now(),
         onupdate=func.now(),
+    )
+    search_vector = mapped_column(
+        TSVECTOR,
+        Computed(
+            "setweight(to_tsvector('english', coalesce(subject, '')), 'A') || "
+            "setweight(to_tsvector('english', coalesce(full_text, '')), 'B') || "
+            "setweight(to_tsvector('english', coalesce(member, '')), 'C') || "
+            "setweight(to_tsvector('english', coalesce(ministry, '')), 'C')",
+            persisted=True,
+        ),
     )
 
     session: Mapped["ParliamentarySession"] = relationship(back_populates="records")

@@ -4,9 +4,8 @@ from sqlalchemy.orm import Session
 
 from app.ai.embeddings.ollama_provider import OllamaEmbeddingProvider
 from app.ai.interfaces import EmbeddingProvider, ExplanationProvider, RankFusion
-from app.ai.normalization import normalize_text
 from app.ai.retrieval.hybrid import RRFRankFusion
-from app.ai.retrieval.lexical import BM25LexicalRetriever
+from app.ai.retrieval.lexical import PostgresLexicalRetriever
 from app.ai.retrieval.semantic import PgVectorSemanticRetriever
 from app.ai.schemas import (
     AIExplanation,
@@ -54,14 +53,14 @@ class AISimilarityService:
         if not request.query_text.strip():
             return self._empty_response(request)
 
-        # Exact duplicate check.
-        normalized = normalize_text(request.query_text)
+        requested_limit = request.limit or self._settings.ai_final_top_k
+        retrieval_window = request.offset + requested_limit
 
         # Lexical retrieval.
-        lexical = BM25LexicalRetriever(self._db, self._user)
+        lexical = PostgresLexicalRetriever(self._db, self._user)
         lexical_matches = lexical.search(
             request,
-            self._settings.ai_lexical_top_k,
+            max(self._settings.ai_lexical_top_k, retrieval_window),
         )
 
         # Semantic retrieval.
@@ -75,7 +74,7 @@ class AISimilarityService:
             semantic_matches = semantic.search(
                 request,
                 query_embedding,
-                self._settings.ai_semantic_top_k,
+                max(self._settings.ai_semantic_top_k, retrieval_window),
             )
         except RuntimeError as exc:
             logger.warning("Semantic retrieval unavailable; using lexical only: %s", exc)
@@ -88,7 +87,7 @@ class AISimilarityService:
         if not degraded:
             ranked_lists.append(semantic_matches)
         fused = self._rank_fusion.combine(*ranked_lists)
-        final = fused[: self._settings.ai_final_top_k]
+        final = fused[request.offset : request.offset + requested_limit]
 
         return SimilaritySearchResponse(
             query_text=request.query_text,

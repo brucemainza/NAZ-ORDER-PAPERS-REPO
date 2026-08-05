@@ -15,6 +15,9 @@ class EmptyDatabase:
     def execute(self, _query):
         return EmptyResult()
 
+    def scalar(self, _query):
+        return 0
+
 
 class OfflineEmbeddingProvider:
     model_name = "offline-model"

@@ -145,7 +145,7 @@ def test_non_owner_cannot_retrieve_list_or_search_another_users_draft(
     list_response = client.get("/records", headers=other_headers)
     search_response = client.post(
         "/search",
-        json={"query_text": "Confidentialdrafttoken"},
+        json={"query_text": "Confidentialdrafttoken", "mode": "keyword"},
         headers=other_headers,
     )
 

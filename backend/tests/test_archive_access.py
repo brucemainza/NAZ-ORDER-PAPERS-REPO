@@ -113,7 +113,7 @@ def test_search_archive_permission_controls_archived_search_results(
     denied = create_user(db_session, "EMP-ARCHIVE-NO-SEARCH")
     allowed_headers = auth_headers(db_session, allowed)
     denied_headers = auth_headers(db_session, denied)
-    request_body = {"query_text": "copperarchive", "limit": 10}
+    request_body = {"query_text": "copperarchive", "limit": 10, "mode": "keyword"}
 
     allowed_response = client.post(
         "/search",

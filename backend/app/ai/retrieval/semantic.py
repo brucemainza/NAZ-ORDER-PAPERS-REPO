@@ -70,6 +70,18 @@ class PgVectorSemanticRetriever(SemanticRetriever):
                 func.lower(ParliamentaryRecord.status)
                 == request.status.strip().lower()
             )
+        if request.date:
+            query = query.where(
+                func.date(ParliamentaryRecord.created_at) == request.date
+            )
+        if request.member:
+            query = query.where(
+                ParliamentaryRecord.member.ilike(f"%{request.member.strip()}%")
+            )
+        if request.ministry:
+            query = query.where(
+                ParliamentaryRecord.ministry.ilike(f"%{request.ministry.strip()}%")
+            )
         if request.exclude_ids:
             query = query.where(
                 ParliamentaryRecord.id.not_in(tuple(request.exclude_ids))
