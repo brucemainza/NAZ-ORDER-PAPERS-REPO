@@ -1,3 +1,4 @@
+from hashlib import sha256
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
@@ -6,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import add_audit_log, get_current_user, request_ip, require_permission
+from app.jobs.queue import enqueue_outbox_job
 from app.models import ParliamentaryRecord, ParliamentarySession, User
 from app.notifications.dependencies import get_status_change_notifier
 from app.notifications.service import StatusChangeNotifier
@@ -224,6 +226,23 @@ def create_submission(
     transition_submission(record, SubmissionStatus.UNDER_REVIEW)
     db.add(record)
     db.flush()
+    content_hash = sha256(search_text.encode("utf-8")).hexdigest()
+    enqueue_outbox_job(
+        db,
+        job_type="embed_record",
+        payload={
+            "record_id": str(record.id),
+            "content_hash": content_hash,
+            "model": embedding_generator.model_name,
+        },
+        deduplication_key=(
+            f"embed_record:{record.id}:{content_hash}:"
+            f"{embedding_generator.model_name}"
+        ),
+        aggregate_type="parliamentary_record",
+        aggregate_id=str(record.id),
+        event_type="record.indexing_requested",
+    )
     related_item_linker.link(record, addressed_result.matches)
     add_audit_log(
         db,
@@ -381,6 +400,23 @@ def update_draft(
         except RuntimeError:
             record.embedding = None
             record.embedding_model = None
+        content_hash = sha256(search_text.encode("utf-8")).hexdigest()
+        enqueue_outbox_job(
+            db,
+            job_type="embed_record",
+            payload={
+                "record_id": str(record.id),
+                "content_hash": content_hash,
+                "model": embedding_generator.model_name,
+            },
+            deduplication_key=(
+                f"embed_record:{record.id}:{content_hash}:"
+                f"{embedding_generator.model_name}"
+            ),
+            aggregate_type="parliamentary_record",
+            aggregate_id=str(record.id),
+            event_type="record.indexing_requested",
+        )
 
     add_audit_log(
         db,

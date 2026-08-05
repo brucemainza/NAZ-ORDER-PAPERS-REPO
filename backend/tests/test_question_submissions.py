@@ -4,6 +4,7 @@ import pytest
 
 from app.lib.auth import create_access_token
 from app.models import (
+    BackgroundJob,
     ParliamentaryRecord,
     ParliamentarySession,
     Permission,
@@ -190,3 +191,6 @@ def test_submission_succeeds_when_embedding_service_is_offline(
     ]
     saved = db_session.get(ParliamentaryRecord, response.json()["record"]["id"])
     assert saved.embedding is None
+    job = db_session.query(BackgroundJob).one()
+    assert job.job_type == "embed_record"
+    assert job.payload["record_id"] == str(saved.id)

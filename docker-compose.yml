@@ -44,6 +44,18 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  worker:
+    build: ./backend
+    command: ["python", "-m", "app.jobs.worker"]
+    environment:
+      - DATABASE_URL=postgresql+psycopg://naz_user:naz_password@db:5432/naz_order_papers
+      - OLLAMA_BASE_URL=http://host.docker.internal:11435
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
   frontend:
     build: ./frontend
     container_name: naz_order_papers_frontend
