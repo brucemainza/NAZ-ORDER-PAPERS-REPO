@@ -1567,6 +1567,54 @@ video {
     line-height: 1.25rem;
   }
 
+  .submit-form__upload {
+    display: flex;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    border: 2px dashed var(--border);
+    border-radius: 0.5rem;
+    background: var(--bg);
+    padding: 1.5rem;
+    text-align: center;
+    transition: border-color 0.15s ease-in-out, background-color 0.15s ease-in-out;
+  }
+
+  .submit-form__upload:hover,
+  .submit-form__upload--active {
+    border-color: var(--primary);
+    background: var(--primary-light);
+  }
+
+  .submit-form__upload-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .submit-form__upload-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.375rem;
+    color: var(--muted);
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+
+  .submit-form__upload-title {
+    color: var(--black);
+    font-weight: 500;
+  }
+
+  .submit-form__upload-hint {
+    font-size: 0.8125rem;
+  }
+
   .submit-form__actions {
     display: flex;
     justify-content: flex-end;

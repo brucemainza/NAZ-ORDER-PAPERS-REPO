@@ -46,6 +46,13 @@ class Settings:
     duplicate_similarity_threshold: float
     automatic_link_similarity_threshold: float
     previously_addressed_threshold: float
+    upload_parse_timeout_seconds: float
+    upload_parse_memory_mb: int
+    upload_temp_directory: str | None
+    upload_malware_scan_required: bool
+    clamav_host: str
+    clamav_port: int
+    clamav_timeout: float
 
     def __init__(self) -> None:
         self.database_url = getenv(
@@ -127,6 +134,21 @@ class Settings:
         self.previously_addressed_threshold = float(
             getenv("PREVIOUSLY_ADDRESSED_THRESHOLD", "0.72")
         )
+        self.upload_parse_timeout_seconds = float(
+            getenv("UPLOAD_PARSE_TIMEOUT_SECONDS", "15")
+        )
+        self.upload_parse_memory_mb = int(
+            getenv("UPLOAD_PARSE_MEMORY_MB", "1024")
+        )
+        self.upload_temp_directory = (
+            getenv("UPLOAD_TEMP_DIRECTORY", "").strip() or None
+        )
+        self.upload_malware_scan_required = getenv(
+            "UPLOAD_MALWARE_SCAN_REQUIRED", "true"
+        ).strip().casefold() in {"1", "true", "yes", "on"}
+        self.clamav_host = getenv("CLAMAV_HOST", "clamav").strip()
+        self.clamav_port = int(getenv("CLAMAV_PORT", "3310"))
+        self.clamav_timeout = float(getenv("CLAMAV_TIMEOUT", "10"))
 
 
 @lru_cache

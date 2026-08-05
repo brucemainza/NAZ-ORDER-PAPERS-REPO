@@ -6,11 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import ParliamentaryRecord, QuestionResponse
-from app.notifications.service import StatusChangeNotifier
-from app.notifications.tasks import (
-    TaskScheduler,
-    enqueue_status_change_notification,
-)
+from app.notifications.tasks import enqueue_status_change_notification
 from app.services.status_transition import StatusTransitioner
 from app.services.submission_status import SubmissionStatus
 
@@ -44,13 +40,9 @@ class ResponseRecordingService(ResponseRecorder):
         db: Session,
         *,
         status_transitioner: StatusTransitioner,
-        notifier: StatusChangeNotifier,
-        task_scheduler: TaskScheduler,
     ) -> None:
         self._db = db
         self._status_transitioner = status_transitioner
-        self._notifier = notifier
-        self._task_scheduler = task_scheduler
 
     def record_response(
         self,
@@ -104,8 +96,8 @@ class ResponseRecordingService(ResponseRecorder):
             raise
 
         enqueue_status_change_notification(
-            self._task_scheduler,
-            self._notifier,
+            self._db,
+            event_key=f"question-response:{response.id}",
             recipient=record.submitter.email if record.submitter else None,
             record_id=record.id,
             item_type=record.item_type,

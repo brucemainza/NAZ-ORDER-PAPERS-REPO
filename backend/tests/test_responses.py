@@ -8,6 +8,7 @@ import pytest
 from app.email.base import EmailProvider
 from app.lib.auth import create_access_token
 from app.models import (
+    BackgroundJob,
     ParliamentaryRecord,
     ParliamentarySession,
     Permission,
@@ -15,6 +16,8 @@ from app.models import (
     User,
     UserSession,
 )
+from app.jobs.worker import claim_jobs, process_claimed_job
+from app.notifications.service import NotificationService
 
 
 def _load_response_service_module():
@@ -275,7 +278,7 @@ class FakeEmailProvider(EmailProvider):
         return True
 
 
-def test_recording_response_marks_question_answered_and_notifies_submitter(
+def test_recording_response_marks_question_answered_and_queues_notification(
     client,
     db_session,
 ):
@@ -308,6 +311,15 @@ def test_recording_response_marks_question_answered_and_notifies_submitter(
     assert response.json()["status"] == "Answered"
     db_session.refresh(question)
     assert question.status == "Answered"
+    assert provider.calls == []
+    job = db_session.query(BackgroundJob).filter_by(job_type="notification").one()
+    claim_jobs(db_session, worker_id="response-mail-worker", limit=1)
+    db_session.commit()
+
+    assert process_claimed_job(
+        job.id,
+        notifier=NotificationService(provider),
+    ) is True
     assert len(provider.calls) == 1
     assert provider.calls[0]["to"] == "answered.submitter@parliament.gov.zm"
     assert provider.calls[0]["subject"] == (
@@ -318,19 +330,6 @@ def test_recording_response_marks_question_answered_and_notifies_submitter(
 class FailingStatusTransitioner:
     def transition(self, record, target_status):
         raise RuntimeError("forced status update failure")
-
-
-class FakeStatusChangeNotifier:
-    async def notify_status_change(self, **kwargs):
-        return True
-
-
-class FakeTaskScheduler:
-    def __init__(self):
-        self.tasks = []
-
-    def add_task(self, function, *args, **kwargs):
-        self.tasks.append((function, args, kwargs))
 
 
 def test_response_and_status_transition_are_atomic_on_forced_failure(db_session):
@@ -347,8 +346,6 @@ def test_response_and_status_transition_are_atomic_on_forced_failure(db_session)
     service = responses.ResponseRecordingService(
         db_session,
         status_transitioner=FailingStatusTransitioner(),
-        notifier=FakeStatusChangeNotifier(),
-        task_scheduler=FakeTaskScheduler(),
     )
 
     with pytest.raises(RuntimeError, match="forced status update failure"):
@@ -360,5 +357,6 @@ def test_response_and_status_transition_are_atomic_on_forced_failure(db_session)
         )
 
     assert db_session.query(models.QuestionResponse).count() == 0
+    assert db_session.query(BackgroundJob).filter_by(job_type="notification").count() == 0
     db_session.refresh(question)
     assert question.status == "Scheduled"

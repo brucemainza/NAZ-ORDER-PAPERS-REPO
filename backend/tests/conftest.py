@@ -12,6 +12,7 @@ TEST_DATABASE_URL = (
 
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 os.environ["JWT_SECRET"] = "test-jwt-secret"
+os.environ["UPLOAD_MALWARE_SCAN_REQUIRED"] = "false"
 
 with psycopg.connect(
     "postgresql://naz_user:naz_password@localhost:5433/postgres",

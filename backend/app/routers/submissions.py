@@ -3,23 +3,24 @@ from uuid import UUID
 
 from fastapi import (
     APIRouter,
-    BackgroundTasks,
     Depends,
+    File,
+    Form,
     Header,
     HTTPException,
     Query,
     Request,
+    UploadFile,
     status,
 )
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.config import get_settings
 from app.deps import add_audit_log, get_current_user, request_ip, require_permission
 from app.jobs.queue import enqueue_outbox_job
 from app.models import ParliamentaryRecord, ParliamentarySession, User
-from app.notifications.dependencies import get_status_change_notifier
-from app.notifications.service import StatusChangeNotifier
 from app.notifications.tasks import enqueue_status_change_notification
 from app.schemas.search import SearchResultOut
 from app.schemas.similarity import (
@@ -27,6 +28,7 @@ from app.schemas.similarity import (
     SimilarityCheckResponse,
 )
 from app.schemas.submission import (
+    DocumentUploadResponse,
     SubmissionCreate,
     SubmissionDraftUpdate,
     SubmissionRecordOut,
@@ -48,12 +50,19 @@ from app.similarity.embeddings import EmbeddingGenerator
 from app.similarity.presentation import SimilarityResultFormatter
 from app.similarity.previously_addressed import PreviouslyAddressedChecker
 from app.similarity.related_items import RelatedItemLinker
+from app.services.document_parser import bounded_upload_file, parse_document_safely
 from app.services.idempotency import (
     IdempotencyConflict,
     IdempotencyInProgress,
     cached_idempotency_response,
     claim_idempotency_key,
     complete_idempotency_key,
+)
+from app.services.malware import (
+    MalwareDetected,
+    MalwareScanner,
+    MalwareScannerUnavailable,
+    get_malware_scanner,
 )
 from app.services.similarity import find_previously_addressed_candidates
 from app.services.submission_status import (
@@ -202,6 +211,78 @@ def check_submission_similarity(
         threshold_version=result.threshold_version,
         matches=result_formatter.format(result.matches),
         previously_addressed=addressed_matches,
+    )
+
+
+@router.post(
+    "/upload",
+    response_model=DocumentUploadResponse,
+    status_code=status.HTTP_200_OK,
+)
+def upload_submission_document(
+    file: UploadFile = File(..., description="PDF, DOCX or TXT parliamentary document"),
+    item_type: str | None = Form(default=None, pattern="^(Question|Motion)?$"),
+    user: User = Depends(get_current_user),
+    malware_scanner: MalwareScanner = Depends(get_malware_scanner),
+) -> DocumentUploadResponse:
+    """Extract submission fields from an uploaded document.
+
+    The returned subject and full text can be used to pre-fill the submission
+    form. The caller is still responsible for selecting the parliamentary
+    session, member and any question-specific fields before creating the
+    submission.
+    """
+    required_permission = (
+        "submit_question" if item_type == "Question" else "submit_motion"
+    )
+    if item_type is not None and not user.has_permission(required_permission):
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    if item_type is None and not any(
+        user.has_permission(permission)
+        for permission in ("submit_question", "submit_motion")
+    ):
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    settings = get_settings()
+    try:
+        with bounded_upload_file(
+            file.file,
+            temp_directory=settings.upload_temp_directory,
+        ) as path:
+            malware_scanner.scan(path)
+            result = parse_document_safely(
+                path,
+                filename=file.filename,
+                content_type=file.content_type,
+                item_type=item_type,
+                timeout_seconds=settings.upload_parse_timeout_seconds,
+                memory_mb=settings.upload_parse_memory_mb,
+            )
+    except MalwareDetected as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Uploaded document failed malware scanning",
+        ) from exc
+    except MalwareScannerUnavailable as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Document scanning is temporarily unavailable",
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Document parsing is temporarily unavailable",
+        ) from exc
+
+    return DocumentUploadResponse(
+        item_type=result["item_type"],
+        subject=result["subject"],
+        full_text=result["full_text"],
     )
 
 
@@ -401,10 +482,8 @@ def create_submission(
 def resubmit_draft(
     record_id: UUID,
     request: Request,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
-    notifier: StatusChangeNotifier = Depends(get_status_change_notifier),
 ) -> ParliamentaryRecord:
     record = db.scalar(
         select(ParliamentaryRecord)
@@ -434,7 +513,7 @@ def resubmit_draft(
     except InvalidStatusTransition as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
 
-    add_audit_log(
+    audit_entry = add_audit_log(
         db,
         user_id=user.id,
         action="record_resubmission",
@@ -443,11 +522,10 @@ def resubmit_draft(
         details=record.subject,
         ip_address=request_ip(request),
     )
-    db.commit()
-    db.refresh(record)
+    db.flush()
     enqueue_status_change_notification(
-        background_tasks,
-        notifier,
+        db,
+        event_key=f"record-resubmission:{audit_entry.id}",
         recipient=record.submitter.email if record.submitter else None,
         record_id=record.id,
         item_type=record.item_type,
@@ -455,6 +533,8 @@ def resubmit_draft(
         old_status=old_status,
         new_status=record.status,
     )
+    db.commit()
+    db.refresh(record)
     return record
 
 

@@ -10,6 +10,8 @@ from app.email.base import EmailProvider
 from app.lib.auth import create_access_token
 from app.main import app
 from app.models import (
+    BackgroundJob,
+    OutboxEvent,
     ParliamentaryRecord,
     ParliamentarySession,
     Permission,
@@ -17,6 +19,7 @@ from app.models import (
     User,
     UserSession,
 )
+from app.jobs.worker import claim_jobs, process_claimed_job
 
 
 def _load_notification_module():
@@ -121,6 +124,31 @@ def test_notification_service_does_not_send_when_status_is_unchanged():
     assert provider.calls == []
 
 
+def test_notification_html_escapes_all_user_controlled_fields():
+    notifications = _load_notification_module()
+    provider = FakeEmailProvider()
+    service = notifications.NotificationService(provider)
+
+    sent = asyncio.run(
+        service.notify_status_change(
+            **_notification_args(
+                item_type='<img src=x onerror="alert(1)">',
+                subject='<script>alert("subject")</script>',
+                old_status="<b>old</b>",
+                new_status="<i>new</i>",
+            )
+        )
+    )
+
+    assert sent is True
+    html_body = provider.calls[0]["html_body"]
+    assert "<script>" not in html_body
+    assert "<img" not in html_body
+    assert "<b>old</b>" not in html_body
+    assert "&lt;script&gt;" in html_body
+    assert "&lt;img" in html_body
+
+
 def _session():
     return ParliamentarySession(
         code=f"NOTIFY-{uuid4()}",
@@ -169,7 +197,7 @@ def _headers(db_session, user):
     return {"Authorization": f"Bearer {token}"}
 
 
-def test_status_change_endpoint_sends_exactly_one_background_email(
+def test_status_change_endpoint_enqueues_exactly_one_durable_notification(
     client,
     db_session,
 ):
@@ -212,14 +240,15 @@ def test_status_change_endpoint_sends_exactly_one_background_email(
 
     assert response.status_code == 200
     assert response.json()["status"] == "Scheduled"
-    assert len(provider.calls) == 1
-    assert provider.calls[0]["to"] == "submitter@parliament.gov.zm"
-    assert provider.calls[0]["subject"] == (
-        "Question status changed to Scheduled"
-    )
+    assert provider.calls == []
+    job = db_session.query(BackgroundJob).filter_by(job_type="notification").one()
+    event = db_session.query(OutboxEvent).filter_by(job_id=job.id).one()
+    assert job.payload["recipient"] == "submitter@parliament.gov.zm"
+    assert job.payload["new_status"] == "Scheduled"
+    assert event.event_type == "notification.requested"
 
 
-def test_email_failure_does_not_roll_back_status_change(client, db_session):
+def test_email_failure_retries_without_rolling_back_status_change(client, db_session):
     _load_notification_module()
     email_factory = importlib.import_module("app.email.factory")
     provider = FakeEmailProvider(error=RuntimeError("mail unavailable"))
@@ -260,6 +289,19 @@ def test_email_failure_does_not_roll_back_status_change(client, db_session):
     assert response.status_code == 200
     db_session.refresh(record)
     assert record.status == "Scheduled"
+    job = db_session.query(BackgroundJob).filter_by(job_type="notification").one()
+    claim_jobs(db_session, worker_id="mail-worker", limit=1)
+    db_session.commit()
+
+    completed = process_claimed_job(
+        job.id,
+        notifier=_load_notification_module().NotificationService(provider),
+    )
+    db_session.expire_all()
+
+    assert completed is False
+    assert db_session.get(BackgroundJob, job.id).status == "retry"
+    assert db_session.get(ParliamentaryRecord, record.id).status == "Scheduled"
     assert len(provider.calls) == 1
 
 
@@ -300,6 +342,7 @@ def test_non_status_draft_update_sends_no_email(client, db_session):
     assert response.status_code == 200
     assert response.json()["status"] == "Draft"
     assert provider.calls == []
+    assert db_session.query(BackgroundJob).filter_by(job_type="notification").count() == 0
 
 
 def test_application_code_does_not_import_concrete_email_provider():

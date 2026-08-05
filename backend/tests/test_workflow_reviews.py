@@ -3,7 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 
 import pytest
-from fastapi import BackgroundTasks, HTTPException
+from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from starlette.requests import Request
@@ -183,10 +183,6 @@ def test_concurrent_workflow_actions_produce_one_valid_transition(db_session):
     )
     barrier = Barrier(2)
 
-    class _Notifier:
-        async def notify_status_change(self, **_kwargs):
-            return True
-
     def attempt_review():
         with Session(engine) as worker_db:
             worker_reviewer = worker_db.get(User, reviewer.id)
@@ -204,11 +200,9 @@ def test_concurrent_workflow_actions_produce_one_valid_transition(db_session):
                             "client": ("127.0.0.1", 1234),
                         }
                     ),
-                    background_tasks=BackgroundTasks(),
                     idempotency_key=None,
                     db=worker_db,
                     reviewer=worker_reviewer,
-                    notifier=_Notifier(),
                 )
                 assert response.status == "Approved"
                 return 201

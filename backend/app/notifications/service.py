@@ -1,5 +1,6 @@
 import logging
 from abc import ABC, abstractmethod
+from html import escape
 from uuid import UUID
 
 from app.email.base import EmailProvider
@@ -47,10 +48,15 @@ class NotificationService(StatusChangeNotifier):
             f"{old_status} to {new_status}.\n\n"
             f"Reference: {record_id}"
         )
+        safe_item_type = escape(item_type, quote=True)
+        safe_subject = escape(subject, quote=True)
+        safe_old_status = escape(old_status, quote=True)
+        safe_new_status = escape(new_status, quote=True)
+        safe_record_id = escape(str(record_id), quote=True)
         html_body = (
-            f"<p>Your {item_type.lower()} <strong>{subject}</strong> changed "
-            f"from {old_status} to <strong>{new_status}</strong>.</p>"
-            f"<p>Reference: {record_id}</p>"
+            f"<p>Your {safe_item_type.lower()} <strong>{safe_subject}</strong> changed "
+            f"from {safe_old_status} to <strong>{safe_new_status}</strong>.</p>"
+            f"<p>Reference: {safe_record_id}</p>"
         )
         try:
             sent = await self._email_provider.send_email(

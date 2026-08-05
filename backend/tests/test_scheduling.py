@@ -1,7 +1,15 @@
 from datetime import date, datetime, timedelta, timezone
 
 from app.lib.auth import create_access_token
-from app.models import ParliamentaryRecord, ParliamentarySession, Permission, Role, User, UserSession
+from app.models import (
+    BackgroundJob,
+    ParliamentaryRecord,
+    ParliamentarySession,
+    Permission,
+    Role,
+    User,
+    UserSession,
+)
 
 
 def create_record(db_session, status="Approved"):
@@ -138,6 +146,9 @@ def test_sitting_date_must_be_within_the_records_session(client, db_session):
 def test_scheduling_idempotency_replays_and_rejects_changed_date(client, db_session):
     record = create_record(db_session)
     scheduler = create_user(db_session, has_schedule_permission=True)
+    scheduler.email = "idempotent.scheduler@parliament.gov.zm"
+    record.submitter = scheduler
+    db_session.commit()
     headers = {
         **auth_headers(db_session, scheduler),
         "Idempotency-Key": "schedule-record-001",
@@ -162,3 +173,4 @@ def test_scheduling_idempotency_replays_and_rejects_changed_date(client, db_sess
     assert first.status_code == replay.status_code == 200
     assert first.json() == replay.json()
     assert conflict.status_code == 409
+    assert db_session.query(BackgroundJob).filter_by(job_type="notification").count() == 1
