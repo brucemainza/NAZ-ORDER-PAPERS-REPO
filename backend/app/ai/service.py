@@ -1,4 +1,7 @@
 import logging
+from datetime import datetime, timezone
+from hashlib import sha256
+from time import perf_counter
 
 from sqlalchemy.orm import Session
 
@@ -15,6 +18,7 @@ from app.ai.schemas import (
     SimilaritySearchResponse,
 )
 from app.config import Settings
+from app.models import AIInferenceRun
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +127,30 @@ class AISimilarityService:
             )
 
         explainer = self._get_explainer()
-        return explainer.explain(query_text, evidence)
+        started = perf_counter()
+        explanation = explainer.explain(query_text, evidence)
+        latency_ms = round((perf_counter() - started) * 1000)
+        evidence_ids = [item["record_id"] for item in evidence if item.get("record_id")]
+        self._db.add(
+            AIInferenceRun(
+                run_type="grounded_explanation_sync",
+                user_id=getattr(self._user, "id", None),
+                query_hash=sha256(query_text.encode("utf-8")).hexdigest(),
+                evidence_ids=evidence_ids,
+                prompt_version=self._settings.ai_prompt_version,
+                model=self._settings.ollama_llm_model,
+                model_digest=(
+                    self._settings.ollama_llm_model_digest
+                    or f"unresolved:{self._settings.ollama_llm_model}"
+                ),
+                result=explanation.model_dump(mode="json"),
+                outcome="failed" if explanation.error else "completed",
+                latency_ms=latency_ms,
+                error=explanation.error,
+                completed_at=datetime.now(timezone.utc),
+            )
+        )
+        return explanation
 
     def health(self) -> AIHealthResponse:
         import httpx

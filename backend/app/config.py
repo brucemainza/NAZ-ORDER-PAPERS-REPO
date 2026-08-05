@@ -23,6 +23,7 @@ class Settings:
     ollama_embedding_model: str
     ollama_embedding_model_digest: str | None
     ollama_llm_model: str
+    ollama_llm_model_digest: str | None
     ai_embedding_dimension: int
     ai_rrf_k: int
     ai_lexical_top_k: int
@@ -30,6 +31,10 @@ class Settings:
     ai_final_top_k: int
     ai_explanation_enabled: bool
     ai_explanation_max_tokens: int
+    ai_explanation_query_max_chars: int
+    ai_explanation_evidence_max_chars: int
+    ai_explanation_context_max_chars: int
+    ai_prompt_version: str
     ai_request_timeout: float
     ai_connect_timeout: float
     ai_max_retries: int
@@ -73,6 +78,9 @@ class Settings:
             getenv("OLLAMA_EMBEDDING_MODEL_DIGEST", "").strip() or None
         )
         self.ollama_llm_model = getenv("OLLAMA_LLM_MODEL", "qwen3.5:4b")
+        self.ollama_llm_model_digest = (
+            getenv("OLLAMA_LLM_MODEL_DIGEST", "").strip() or None
+        )
         self.ai_embedding_dimension = int(getenv("AI_EMBEDDING_DIMENSION", "768"))
         self.ai_rrf_k = int(getenv("AI_RRF_K", "60"))
         self.ai_lexical_top_k = int(getenv("AI_LEXICAL_TOP_K", "20"))
@@ -82,6 +90,18 @@ class Settings:
             "AI_EXPLANATION_ENABLED", "true"
         ).strip().casefold() in {"1", "true", "yes", "on"}
         self.ai_explanation_max_tokens = int(getenv("AI_EXPLANATION_MAX_TOKENS", "400"))
+        self.ai_explanation_query_max_chars = int(
+            getenv("AI_EXPLANATION_QUERY_MAX_CHARS", "4000")
+        )
+        self.ai_explanation_evidence_max_chars = int(
+            getenv("AI_EXPLANATION_EVIDENCE_MAX_CHARS", "6000")
+        )
+        self.ai_explanation_context_max_chars = int(
+            getenv("AI_EXPLANATION_CONTEXT_MAX_CHARS", "18000")
+        )
+        self.ai_prompt_version = getenv(
+            "AI_PROMPT_VERSION", "grounded-v1"
+        ).strip()
         self.ai_request_timeout = float(getenv("AI_REQUEST_TIMEOUT", "120"))
         self.ai_connect_timeout = float(getenv("AI_CONNECT_TIMEOUT", "5"))
         self.ai_max_retries = int(getenv("AI_MAX_RETRIES", "2"))

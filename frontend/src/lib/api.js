@@ -44,3 +44,12 @@ export const explainAI = (queryText, recordIds) =>
         query_text: queryText,
         record_ids: recordIds,
     });
+
+export const createExplanationAI = (queryText, recordIds) =>
+    api.post("/api/ai/explanations", {
+        query_text: queryText,
+        record_ids: recordIds,
+    });
+
+export const getExplanationAI = (runId) =>
+    api.get(`/api/ai/explanations/${runId}`);

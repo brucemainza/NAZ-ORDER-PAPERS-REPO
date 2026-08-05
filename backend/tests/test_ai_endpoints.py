@@ -6,6 +6,7 @@ from app.ai.schemas import AIExplanation
 from app.lib.auth import create_access_token
 from app.main import app
 from app.models import (
+    AIInferenceRun,
     AuditLog,
     ParliamentaryRecord,
     ParliamentarySession,
@@ -174,3 +175,45 @@ def test_ai_review_uses_established_decision_vocabulary(client, db_session):
     saved = db_session.get(ReviewDecision, response.json()["review_id"])
     assert saved.decision == "Duplicate"
     assert saved.is_duplicate is True
+
+
+def test_async_explanation_can_be_created_and_polled(client, db_session):
+    record = _record(db_session, code="AI-ASYNC")
+    reviewer = _user(db_session, "EMP-AI-ASYNC", "review_submission")
+    headers = _headers(db_session, reviewer)
+
+    created = client.post(
+        "/ai/explanations",
+        json={"query_text": "Compare this water question", "record_ids": [str(record.id)]},
+        headers=headers,
+    )
+
+    assert created.status_code == 202
+    run = db_session.get(AIInferenceRun, created.json()["run_id"])
+    assert run.outcome == "queued"
+    run.outcome = "completed"
+    run.result = {
+        "classification": "no_strong_match",
+        "confidence": "low",
+        "summary": "No strong match was found.",
+        "shared_points": [],
+        "important_differences": [],
+        "supporting_record_ids": [],
+        "evidence_assessments": [
+            {
+                "record_id": str(record.id),
+                "classification": "not_related",
+                "rationale": "The requests concern different programmes.",
+            }
+        ],
+        "human_review_required": True,
+        "model": "test-model",
+        "error": None,
+    }
+    db_session.commit()
+
+    polled = client.get(f"/ai/explanations/{run.id}", headers=headers)
+
+    assert polled.status_code == 200
+    assert polled.json()["status"] == "completed"
+    assert polled.json()["result"]["human_review_required"] is True

@@ -66,8 +66,28 @@ class AIExplanation(BaseModel):
     shared_points: list[str] = Field(default_factory=list)
     important_differences: list[str] = Field(default_factory=list)
     supporting_record_ids: list[UUID] = Field(default_factory=list)
+    evidence_assessments: list["EvidenceAssessment"] = Field(default_factory=list)
     human_review_required: bool = True
     model: str
+    error: str | None = None
+
+
+class EvidenceAssessment(BaseModel):
+    record_id: UUID
+    classification: Literal[
+        "exact_duplicate",
+        "potential_duplicate",
+        "related_matter",
+        "not_related",
+    ]
+    rationale: str = Field(min_length=1, max_length=2000)
+
+
+class ExplanationJobResponse(BaseModel):
+    run_id: UUID
+    status: Literal["queued", "running", "completed", "failed"]
+    cached: bool = False
+    result: AIExplanation | None = None
     error: str | None = None
 
 

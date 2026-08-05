@@ -1,9 +1,12 @@
 import json
 import logging
 from typing import Any
+from uuid import UUID
 
 import httpx
+from pydantic import ValidationError
 
+from app.ai.explanations import prepare_explanation_context
 from app.ai.generation.prompts import (
     EXPLANATION_JSON_SCHEMA,
     PARLIAMENTARY_SYSTEM_PROMPT,
@@ -17,94 +20,88 @@ logger = logging.getLogger(__name__)
 
 
 class OllamaExplanationProvider(ExplanationProvider):
-    """Grounded explanation provider backed by a local Ollama chat model."""
-
-    def __init__(self, settings: Settings) -> None:
-        self._base_url = settings.ollama_base_url.rstrip("/")
+    def __init__(
+        self,
+        settings: Settings,
+        *,
+        client: httpx.Client | None = None,
+    ) -> None:
+        self._settings = settings
         self._model = settings.ollama_llm_model
-        self._max_tokens = settings.ai_explanation_max_tokens
-        self._timeout = settings.ai_request_timeout
+        self._client = client or httpx.Client(
+            base_url=settings.ollama_base_url.rstrip("/"),
+            timeout=httpx.Timeout(
+                settings.ai_request_timeout,
+                connect=settings.ai_connect_timeout,
+            ),
+            limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+        )
 
     def explain(self, query_text: str, evidence: list[dict]) -> AIExplanation:
-        prompt = build_explanation_prompt(query_text, evidence)
+        context = prepare_explanation_context(query_text, evidence, self._settings)
+        prompt = build_explanation_prompt(
+            context.query_text,
+            context.serialized_evidence,
+        )
+        allowed_ids = {UUID(str(item["record_id"])) for item in evidence}
         try:
-            raw = self._chat(prompt)
-            structured = self._parse_json(raw)
+            return self._validated_explanation(self._chat(prompt), allowed_ids)
         except (httpx.RequestError, httpx.HTTPStatusError) as exc:
-            logger.exception("Ollama explanation request failed")
-            return self._fallback(
-                "The local explanation model is unavailable. Please review the retrieved records manually.",
-            )
-        except (json.JSONDecodeError, ValueError) as exc:
-            logger.warning("Failed to parse explanation JSON: %s", exc)
-            # Retry once with a stricter reminder.
+            logger.warning("Ollama explanation request failed: %s", exc)
+            return self._fallback("The local explanation model is unavailable.")
+        except (json.JSONDecodeError, ValueError, ValidationError) as exc:
+            logger.warning("Invalid grounded explanation: %s", exc)
             try:
-                raw = self._chat(
-                    prompt + "\n\nIMPORTANT: return ONLY valid JSON, no markdown, no commentary."
-                )
-                structured = self._parse_json(raw)
+                reminder = prompt + "\nReturn only valid schema-conforming JSON."
+                return self._validated_explanation(self._chat(reminder), allowed_ids)
             except Exception as retry_exc:
                 logger.warning("Explanation retry failed: %s", retry_exc)
                 return self._fallback(
-                    "The explanation model returned an unparseable response. Please review the retrieved records manually.",
+                    "The explanation was invalid; review the evidence manually."
                 )
 
-        return self._to_schema(structured)
-
     def _chat(self, prompt: str) -> str:
-        url = f"{self._base_url}/api/chat"
         payload: dict[str, Any] = {
             "model": self._model,
             "messages": [
                 {"role": "system", "content": PARLIAMENTARY_SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},
             ],
+            "tools": [],
             "stream": False,
             "format": EXPLANATION_JSON_SCHEMA,
             "options": {
-                "temperature": 0.1,
+                "temperature": 0.0,
                 "num_ctx": 4096,
-                "num_predict": self._max_tokens,
+                "num_predict": self._settings.ai_explanation_max_tokens,
             },
         }
-
-        response = httpx.post(url, json=payload, timeout=self._timeout)
+        response = self._client.post("/api/chat", json=payload)
         response.raise_for_status()
-        data = response.json()
-        return data.get("message", {}).get("content", "")
+        return response.json().get("message", {}).get("content", "")
 
-    def _parse_json(self, raw: str) -> dict:
-        raw = raw.strip()
-        # Some small models wrap JSON in markdown fences.
-        if raw.startswith("```json"):
-            raw = raw[7:]
-        if raw.startswith("```"):
-            raw = raw[3:]
-        if raw.endswith("```"):
-            raw = raw[:-3]
-        raw = raw.strip()
-        return json.loads(raw)
-
-    def _to_schema(self, data: dict) -> AIExplanation:
-        return AIExplanation(
-            classification=data.get("classification", "no_strong_match"),
-            confidence=data.get("confidence", "low"),
-            summary=data.get("summary", ""),
-            shared_points=data.get("shared_points", []),
-            important_differences=data.get("important_differences", []),
-            supporting_record_ids=data.get("supporting_record_ids", []),
-            human_review_required=data.get("human_review_required", True),
-            model=self._model,
-        )
+    def _validated_explanation(
+        self,
+        raw: str,
+        allowed_ids: set[UUID],
+    ) -> AIExplanation:
+        data = json.loads(raw.strip())
+        data["model"] = self._model
+        explanation = AIExplanation.model_validate(data)
+        returned_ids = set(explanation.supporting_record_ids) | {
+            item.record_id for item in explanation.evidence_assessments
+        }
+        if not returned_ids.issubset(allowed_ids):
+            raise ValueError("model returned an evidence ID that was not supplied")
+        return explanation.model_copy(update={"human_review_required": True})
 
     def _fallback(self, summary: str) -> AIExplanation:
         return AIExplanation(
             classification="no_strong_match",
             confidence="low",
             summary=summary,
-            shared_points=[],
-            important_differences=[],
             supporting_record_ids=[],
+            evidence_assessments=[],
             human_review_required=True,
             model=self._model,
             error=summary,

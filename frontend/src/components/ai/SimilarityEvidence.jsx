@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Spinner } from "@/components/ui/Spinner";
-import { explainAI } from "@/lib/api";
+import { createExplanationAI, getExplanationAI } from "@/lib/api";
 
 export default function SimilarityEvidence({ queryText, matches }) {
     const [explanation, setExplanation] = useState(null);
@@ -17,12 +17,38 @@ export default function SimilarityEvidence({ queryText, matches }) {
         setLoading(true);
         setError(null);
 
-        explainAI(queryText, recordIds)
-            .then((res) => setExplanation(res.data))
-            .catch((err) => {
-                setError(err?.response?.data?.message || "Could not load AI explanation");
+        let cancelled = false;
+        let timer;
+        const poll = async (runId) => {
+            const response = await getExplanationAI(runId);
+            if (cancelled) return;
+            if (response.data.status === "completed" || response.data.status === "failed") {
+                setExplanation(response.data.result);
+                setError(response.data.error || null);
+                setLoading(false);
+                return;
+            }
+            timer = window.setTimeout(() => poll(runId), 1000);
+        };
+        createExplanationAI(queryText, recordIds)
+            .then((response) => {
+                if (response.data.result) {
+                    setExplanation(response.data.result);
+                    setLoading(false);
+                    return;
+                }
+                return poll(response.data.run_id);
             })
-            .finally(() => setLoading(false));
+            .catch((err) => {
+                if (!cancelled) {
+                    setError(err?.response?.data?.message || "Could not load AI explanation");
+                    setLoading(false);
+                }
+            });
+        return () => {
+            cancelled = true;
+            if (timer) window.clearTimeout(timer);
+        };
     }, [queryText, matches]);
 
     if (!matches || matches.length === 0) return null;
