@@ -1,3 +1,4 @@
+import importlib.util
 from datetime import date, datetime, timezone
 from uuid import uuid4
 
@@ -39,6 +40,10 @@ def _record(db, session, *, subject, full_text, status="Approved", member="Membe
 
 def test_hybrid_is_the_default_search_mode():
     assert SearchRequest(query_text="rural water").mode == "hybrid"
+
+
+def test_legacy_in_process_bm25_ranker_is_removed():
+    assert importlib.util.find_spec("app.retrieval.bm25") is None
 
 
 def test_differently_ordered_terms_retrieve_the_same_record(db_session):
@@ -123,7 +128,7 @@ def test_visibility_and_filters_apply_before_ranking(db_session):
     assert [match.record_id for match in matches] == [visible.id]
 
 
-def test_pagination_is_stable_and_ranked_in_postgres(db_session, monkeypatch):
+def test_pagination_is_stable_and_ranked_in_postgres(db_session):
     session = _session(db_session)
     records = [
         _record(
@@ -139,12 +144,6 @@ def test_pagination_is_stable_and_ranked_in_postgres(db_session, monkeypatch):
     )
     db_session.add(user)
     db_session.commit()
-    monkeypatch.setattr(
-        "app.retrieval.bm25.rank_records",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(
-            AssertionError("Python corpus ranking must not run")
-        ),
-    )
     retriever = PostgresLexicalRetriever(db_session, user)
     request = SimilaritySearchRequest(query_text="transport corridor")
 

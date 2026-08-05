@@ -1,3 +1,6 @@
+from dataclasses import dataclass
+from typing import Protocol
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -6,7 +9,19 @@ from app.ai.schemas import SimilaritySearchRequest
 from app.ai.service import AISimilarityService
 from app.config import get_settings
 from app.models import ParliamentaryRecord
-from app.retrieval.bm25 import RankedMatch
+
+
+class CandidateRecord(Protocol):
+    id: object
+
+
+@dataclass
+class RankedMatch:
+    """Compatibility result used by the submission candidate workflow."""
+
+    record: CandidateRecord
+    score: float
+    matched_terms: list[str]
 
 
 def find_previously_addressed_candidates(
@@ -18,8 +33,8 @@ def find_previously_addressed_candidates(
 ) -> list[RankedMatch]:
     """Find related historical records using hybrid lexical + semantic retrieval.
 
-    This replaces the earlier BM25-only + raw vector SQL approach with the new
-    RRF-based AI service while preserving the existing router contract.
+    PostgreSQL full-text and compatible chunk-vector ranks are fused through
+    the AI service while this adapter preserves the existing router contract.
     """
     settings = get_settings()
     embedding_provider = get_embedding_provider()

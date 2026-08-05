@@ -29,7 +29,7 @@ class AISimilarityService:
     Pipeline:
       1. Validate input.
       2. Optional exact-text check.
-      3. Lexical retrieval (BM25 on SQL-filtered candidates).
+      3. PostgreSQL full-text retrieval over visibility-filtered candidates.
       4. Semantic retrieval (pgvector cosine distance).
       5. Reciprocal Rank Fusion.
       6. Optional LLM explanation (added by caller if needed).

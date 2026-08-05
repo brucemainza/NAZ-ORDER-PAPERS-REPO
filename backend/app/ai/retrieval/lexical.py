@@ -119,7 +119,3 @@ class PostgresLexicalRetriever(LexicalRetriever):
                 ParliamentaryRecord.id.not_in(tuple(request.exclude_ids))
             )
         return query
-
-
-# Transitional import alias for callers that used the prototype name.
-BM25LexicalRetriever = PostgresLexicalRetriever

@@ -39,7 +39,7 @@ class SemanticRetriever(ABC):
 
 
 class LexicalRetriever(ABC):
-    """Retrieve candidates using lexical search (BM25 or full-text)."""
+    """Retrieve candidates using PostgreSQL full-text search."""
 
     @abstractmethod
     def search(
