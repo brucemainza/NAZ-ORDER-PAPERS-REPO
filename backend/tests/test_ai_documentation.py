@@ -104,3 +104,44 @@ def test_ai_documentation_is_offline_and_removes_obsolete_implementation_claims(
     assert "in-process bm25" not in lowered
     assert "synchronous indexing" not in lowered
     assert "similarity percentage" not in lowered
+
+
+def test_ai_documentation_restores_original_diagram_style():
+    html = DOCUMENT.read_text()
+
+    assert html.count('class="legacy-diagram"') >= 3
+    assert '<div class="flow"' not in html
+    assert ".legacy-diagram .user" in html
+    assert ".legacy-diagram .box" in html
+    assert ".legacy-diagram .model" in html
+    assert ".legacy-diagram .db" in html
+
+
+def test_ai_documentation_ends_with_full_system_uml_component_diagram():
+    html = DOCUMENT.read_text()
+    uml_position = html.index('<section id="full-system-uml"')
+    main_end = html.index("</main>")
+    footer_position = html.index("<footer>")
+
+    assert main_end < uml_position < footer_position
+    assert html[uml_position:footer_position].count("<section") == 1
+    assert 'class="uml-component-diagram"' in html
+    assert "@startuml" in html
+    for component in (
+        "Parliamentary staff",
+        "Next.js frontend",
+        "FastAPI API",
+        "Authentication",
+        "Authorization and visibility",
+        "Durable worker",
+        "PostgreSQL + pgvector",
+        "Ollama",
+        "ClamAV",
+        "SMTP provider",
+        "Prometheus",
+        "OpenTelemetry",
+        "Alembic migrator",
+        "Encrypted backup and WAL archive",
+        "CI/CD and image registry",
+    ):
+        assert component in html
