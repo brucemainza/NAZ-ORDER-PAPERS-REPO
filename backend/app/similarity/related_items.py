@@ -4,12 +4,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import ParliamentaryRecord
+from app.config import get_settings
 from app.similarity.previously_addressed import (
     ADDRESSED_STATUSES,
     PreviouslyAddressedMatch,
 )
 
-AUTO_LINK_SIMILARITY_THRESHOLD = 0.85
+AUTO_LINK_SIMILARITY_THRESHOLD = 0.99
 
 
 class RelatedItemLinker(ABC):
@@ -27,6 +28,7 @@ class RelatedItemLinkService(RelatedItemLinker):
 
     def __init__(self, db: Session) -> None:
         self._db = db
+        self._threshold = get_settings().automatic_link_similarity_threshold
 
     def link(
         self,
@@ -36,7 +38,7 @@ class RelatedItemLinkService(RelatedItemLinker):
         candidate_ids = {
             match.source_id
             for match in matches
-            if match.score >= AUTO_LINK_SIMILARITY_THRESHOLD
+            if match.score >= self._threshold
             and match.source_id != record.id
         }
         if not candidate_ids:

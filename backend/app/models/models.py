@@ -15,7 +15,9 @@ from sqlalchemy import (
     Table,
     Text,
     UniqueConstraint,
+    event,
     func,
+    inspect as sqlalchemy_inspect,
 )
 from sqlalchemy.dialects.postgresql import (
     ARRAY,
@@ -521,3 +523,34 @@ class IdempotencyKey(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+@event.listens_for(ParliamentaryRecord, "before_insert")
+def set_record_identity_before_insert(_mapper, _connection, record) -> None:
+    from app.similarity.normalization import record_content_hash
+
+    record.normalized_hash = record_content_hash(
+        record.item_type,
+        record.subject,
+        record.full_text,
+    )
+    record.version = record.version or 1
+
+
+@event.listens_for(ParliamentaryRecord, "before_update")
+def update_record_identity_before_update(_mapper, _connection, record) -> None:
+    state = sqlalchemy_inspect(record)
+    content_changed = any(
+        state.attrs[field].history.has_changes()
+        for field in ("item_type", "subject", "full_text")
+    )
+    if not content_changed:
+        return
+    from app.similarity.normalization import record_content_hash
+
+    record.normalized_hash = record_content_hash(
+        record.item_type,
+        record.subject,
+        record.full_text,
+    )
+    record.version = (record.version or 1) + 1

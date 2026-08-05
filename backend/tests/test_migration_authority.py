@@ -55,7 +55,7 @@ def test_fresh_database_upgrades_to_complete_head():
         finally:
             engine.dispose()
 
-    assert revision == "20260805_0008"
+    assert revision == "20260805_0009"
     assert {
         "parliamentary_records",
         "background_jobs",
@@ -98,14 +98,16 @@ def test_database_at_0006_upgrades_without_losing_records():
             with engine.connect() as connection:
                 persisted = connection.execute(
                     text(
-                        "SELECT subject FROM parliamentary_records WHERE id = :id"
+                        "SELECT subject, normalized_hash FROM parliamentary_records "
+                        "WHERE id = :id"
                     ),
                     {"id": record_id},
-                ).scalar_one()
+                ).one()
         finally:
             engine.dispose()
 
-    assert persisted == "Water supply"
+    assert persisted.subject == "Water supply"
+    assert len(persisted.normalized_hash) == 64
 
 
 def test_application_startup_performs_no_schema_ddl():

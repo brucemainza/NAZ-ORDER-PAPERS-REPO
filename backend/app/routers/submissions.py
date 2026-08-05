@@ -31,7 +31,6 @@ from app.similarity.dependencies import (
     get_similarity_result_formatter,
 )
 from app.similarity.duplicate_detection import (
-    DUPLICATE_SIMILARITY_THRESHOLD,
     DuplicateChecker,
     DuplicateMatch,
     build_similarity_text,
@@ -122,13 +121,16 @@ def check_submission_similarity(
                     source_id=match.source_id,
                     score=match.score,
                     match_type="previously_addressed",
+                    ranking_score=match.score,
+                    cosine_similarity=match.score,
                 )
                 for match in addressed_result.matches
             ]
         )
     return SimilarityCheckResponse(
         possible_duplicate=result.is_duplicate,
-        threshold=DUPLICATE_SIMILARITY_THRESHOLD,
+        threshold=result.threshold,
+        threshold_version=result.threshold_version,
         matches=result_formatter.format(result.matches),
         previously_addressed=addressed_matches,
     )
@@ -180,6 +182,8 @@ def create_submission(
                 source_id=match.source_id,
                 score=match.score,
                 match_type="previously_addressed",
+                ranking_score=match.score,
+                cosine_similarity=match.score,
             )
             for match in addressed_result.matches
         ]
@@ -187,7 +191,8 @@ def create_submission(
     if duplicate_result.is_duplicate and not submission.confirm_duplicate:
         check_response = SimilarityCheckResponse(
             possible_duplicate=True,
-            threshold=DUPLICATE_SIMILARITY_THRESHOLD,
+            threshold=duplicate_result.threshold,
+            threshold_version=duplicate_result.threshold_version,
             matches=result_formatter.format(duplicate_result.matches),
             previously_addressed=addressed_matches,
         )

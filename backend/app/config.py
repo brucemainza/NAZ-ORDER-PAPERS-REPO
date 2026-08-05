@@ -37,6 +37,10 @@ class Settings:
     ai_chunk_max_chars: int
     ai_chunk_overlap_chars: int
     ai_preprocessing_version: str
+    similarity_threshold_version: str
+    duplicate_similarity_threshold: float
+    automatic_link_similarity_threshold: float
+    previously_addressed_threshold: float
 
     def __init__(self) -> None:
         self.database_url = getenv(
@@ -91,6 +95,18 @@ class Settings:
         self.ai_preprocessing_version = getenv(
             "AI_PREPROCESSING_VERSION", "chunks-v1"
         ).strip()
+        self.similarity_threshold_version = getenv(
+            "SIMILARITY_THRESHOLD_VERSION", "2026-08-05-v1"
+        ).strip()
+        self.duplicate_similarity_threshold = float(
+            getenv("DUPLICATE_SIMILARITY_THRESHOLD", "0.95")
+        )
+        self.automatic_link_similarity_threshold = float(
+            getenv("AUTOMATIC_LINK_SIMILARITY_THRESHOLD", "0.99")
+        )
+        self.previously_addressed_threshold = float(
+            getenv("PREVIOUSLY_ADDRESSED_THRESHOLD", "0.72")
+        )
 
 
 @lru_cache

@@ -91,6 +91,12 @@ class PgVectorSemanticRetriever(SemanticRetriever):
                 score=round(
                     max(0.0, min(1.0, 1.0 - float(row.cosine_distance))), 6
                 ),
+                ranking_score=round(
+                    max(0.0, min(1.0, 1.0 - float(row.cosine_distance))), 6
+                ),
+                cosine_similarity=round(
+                    max(0.0, min(1.0, 1.0 - float(row.cosine_distance))), 6
+                ),
                 semantic_rank=rank,
                 metadata={
                     "subject": row.ParliamentaryRecord.subject,

@@ -72,6 +72,10 @@ class PostgresLexicalRetriever(LexicalRetriever):
             RecordMatch(
                 record_id=UUID(str(row.ParliamentaryRecord.id)),
                 score=round(max(0.0, min(1.0, float(row.lexical_score))), 6),
+                ranking_score=round(
+                    max(0.0, min(1.0, float(row.lexical_score))), 6
+                ),
+                lexical_score=round(float(row.lexical_score), 6),
                 lexical_rank=offset + index,
                 metadata={
                     "subject": row.ParliamentaryRecord.subject,

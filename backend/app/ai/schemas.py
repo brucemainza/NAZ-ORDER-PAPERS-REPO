@@ -25,6 +25,9 @@ class RecordMatch(BaseModel):
 
     record_id: UUID
     score: float = Field(..., ge=0.0, le=1.0)
+    ranking_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    cosine_similarity: float | None = Field(default=None, ge=0.0, le=1.0)
+    lexical_score: float | None = Field(default=None, ge=0.0)
     lexical_rank: int | None = None
     semantic_rank: int | None = None
     rrf_score: float | None = None

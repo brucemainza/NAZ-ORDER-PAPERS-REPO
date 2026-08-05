@@ -39,7 +39,9 @@ export default function SimilarityEvidence({ queryText, matches }) {
                     <li key={result.match.id} className="ai-evidence__match">
                         <span className="ai-evidence__rank">#{result.rank}</span>
                         <span className="ai-evidence__subject">{result.match.title}</span>
-                        <span className="ai-evidence__score">{result.match.score}%</span>
+                        <span className="ai-evidence__score">
+                            {result.match.score}% ranking score
+                        </span>
                     </li>
                 ))}
             </ul>

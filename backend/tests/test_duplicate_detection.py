@@ -83,7 +83,11 @@ def test_exact_duplicate_is_detected_with_a_mocked_similarity_backend(db_session
     duplicate_detection = _load_duplicate_detection_module()
     session = _session(status="Closed")
     text = "What progress has been made on rural borehole construction?"
-    existing = _record(session, full_text=text)
+    existing = _record(
+        session,
+        full_text=text,
+        subject="Rural borehole construction",
+    )
     db_session.add(existing)
     db_session.commit()
     backend = FakeSimilarityBackend()
@@ -122,6 +126,8 @@ def test_near_duplicate_above_threshold_is_detected_via_backend(db_session):
             source_id=source_id,
             score=0.97,
             match_type="semantic",
+            ranking_score=0.97,
+            cosine_similarity=0.97,
         )
     ]
 

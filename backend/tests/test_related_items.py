@@ -74,7 +74,7 @@ def test_high_confidence_link_is_queryable_from_both_sides(db_session):
 
     linked_count = linker.link(
         new,
-        [PreviouslyAddressedMatch(source_id=past.id, score=0.91)],
+        [PreviouslyAddressedMatch(source_id=past.id, score=0.995)],
     )
     db_session.commit()
     db_session.expire_all()
@@ -102,7 +102,7 @@ def test_repeated_link_checks_do_not_create_duplicate_rows(db_session):
     db_session.add_all([past, new])
     db_session.commit()
     linker = related_items.RelatedItemLinkService(db_session)
-    matches = [PreviouslyAddressedMatch(source_id=past.id, score=0.93)]
+    matches = [PreviouslyAddressedMatch(source_id=past.id, score=0.995)]
 
     assert linker.link(new, matches) == 1
     db_session.flush()
@@ -203,7 +203,7 @@ def test_accepted_submission_auto_links_high_confidence_addressed_match(
     db_session.add_all([past, current_session])
     db_session.commit()
     app.dependency_overrides[dependencies.get_similarity_backend] = lambda: (
-        ThresholdAwareFakeBackend(SimilarityMatch(past.id, 0.90))
+        ThresholdAwareFakeBackend(SimilarityMatch(past.id, 0.995))
     )
 
     response = client.post(
@@ -219,6 +219,7 @@ def test_accepted_submission_auto_links_high_confidence_addressed_match(
                 "What progress has been made on current rural borehole "
                 "construction during this implementation period?"
             ),
+            "confirm_duplicate": True,
         },
         headers=_headers(db_session, user),
     )

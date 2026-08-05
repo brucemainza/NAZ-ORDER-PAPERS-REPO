@@ -20,6 +20,9 @@ class SimilarityDisplayMatch:
     member_name: str
     source_record: UUID
     source_id: UUID
+    ranking_score: float
+    cosine_similarity: float | None
+    lexical_rank: int | None
 
 
 class SimilarityResultFormatter(ABC):
@@ -81,6 +84,13 @@ class DatabaseSimilarityResultFormatter(SimilarityResultFormatter):
                     member_name=record.member,
                     source_record=record.id,
                     source_id=record.id,
+                    ranking_score=(
+                        match.ranking_score
+                        if match.ranking_score is not None
+                        else match.score
+                    ),
+                    cosine_similarity=match.cosine_similarity,
+                    lexical_rank=match.lexical_rank,
                 )
             )
         return results
