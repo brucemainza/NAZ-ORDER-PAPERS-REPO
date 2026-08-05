@@ -42,10 +42,10 @@ API documentation:
 | `POST` | `/submissions/{id}/schedule` | Schedule an approved item. |
 | `GET` | `/records` | List/filter records. |
 | `GET` | `/records/{id}` | Record detail. |
-| `GET` | `/records/{id}/similar` | BM25/pgvector candidates. |
+| `GET` | `/records/{id}/similar` | PostgreSQL FTS/pgvector candidates. |
 | `GET` | `/records/{id}/reviews` | Similarity decision history. |
 | `POST` | `/records/{id}/reviews` | Record a similarity decision. |
-| `POST` | `/search` | Ranked BM25 keyword search. |
+| `POST` | `/search` | Ranked PostgreSQL full-text search. |
 | `GET` | `/order-papers/{date}` | Generate sitting Order Paper JSON. |
 | `GET` | `/reports` | Permission-protected aggregate reports. |
 | `GET` | `/reports/sessions/{session_id}` | JSON report of all questions and motions in one session. |
@@ -64,13 +64,16 @@ See [the full API specification](../docs/system-specification.md#14-api-contract
 
 ## Database
 
-SQLAlchemy 2 uses synchronous psycopg 3 sessions. PostgreSQL extensions:
+SQLAlchemy 2 uses synchronous psycopg 3 sessions. Alembic is the sole schema
+authority; run `PYTHONPATH=backend python -m scripts.migrate` before starting
+the API or worker. PostgreSQL extensions:
 
 - `pgcrypto` for UUID defaults;
-- `vector` for optional 384-dimensional embeddings.
+- `vector` for versioned 768-dimensional record and chunk embeddings.
 
-`app/db_compat.py` applies compatibility DDL and RBAC seeding at startup. For a
-production release process, replace this with versioned migrations.
+`app/db_compat.py` seeds default authorization data only and performs no DDL.
+`backend/db/seed.sql` is optional sample data for local development; it is not a
+schema manager and is never run automatically in production.
 
 ## Tests
 

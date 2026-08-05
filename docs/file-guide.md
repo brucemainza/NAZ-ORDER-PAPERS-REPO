@@ -115,8 +115,8 @@ local `.env` files are intentionally not tracked and are not application source.
 
 | File | Responsibility |
 | --- | --- |
-| `backend/db/schema.sql` | First-volume PostgreSQL schema, constraints, pgcrypto/pgvector extensions, foreign keys, and indexes. |
-| `backend/db/seed.sql` | Initial permissions, default roles, role mappings, users, sessions, and sample parliamentary records. |
+| `backend/alembic/versions/` | Sole schema authority: versioned PostgreSQL tables, constraints, pgvector/FTS indexes, and upgrade history. |
+| `backend/db/seed.sql` | Optional local-development sample roles, users, sessions, and records; never a production schema manager. |
 | `backend/scripts/ingest_csv.py` | Command-line CSV importer that maps session codes and normalizes legacy/blank statuses to supported lifecycle values. |
 
 ## 12. Backend Tests

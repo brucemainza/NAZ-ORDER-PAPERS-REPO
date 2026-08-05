@@ -118,6 +118,12 @@ def test_application_startup_performs_no_schema_ddl():
     assert "alter table" not in source
 
 
+def test_alembic_is_the_only_checked_in_schema_manager():
+    backend_root = Path(__file__).parents[1]
+
+    assert not (backend_root / "db" / "schema.sql").exists()
+
+
 def test_migration_lock_rejects_a_concurrent_runner():
     first = create_engine(os.environ["DATABASE_URL"])
     second = create_engine(os.environ["DATABASE_URL"])
