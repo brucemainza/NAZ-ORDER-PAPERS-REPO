@@ -69,6 +69,7 @@ class OllamaExplanationProvider(ExplanationProvider):
                 {"role": "user", "content": prompt},
             ],
             "tools": [],
+            "think": False,
             "stream": False,
             "format": EXPLANATION_JSON_SCHEMA,
             "options": {

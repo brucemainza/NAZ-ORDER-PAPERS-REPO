@@ -77,6 +77,7 @@ def test_prompt_injection_cannot_disable_review_or_change_output_shape():
     assert result.evidence_assessments[0].record_id == record_id
     payload = client.requests[0][1]
     assert payload["tools"] == []
+    assert payload["think"] is False
     assert "<untrusted-evidence" in payload["messages"][1]["content"]
 
 
