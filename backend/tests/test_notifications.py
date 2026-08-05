@@ -365,3 +365,20 @@ def test_application_code_does_not_import_concrete_email_provider():
                     violations.append(str(path.relative_to(app_root)))
 
     assert violations == []
+
+
+def test_notification_delivery_is_not_a_request_scoped_fastapi_dependency():
+    """HTTP requests enqueue mail; only the durable worker delivers it."""
+    notifications_root = Path(__file__).parents[1] / "app" / "notifications"
+    violations = []
+    for path in notifications_root.rglob("*.py"):
+        tree = ast.parse(path.read_text(), filename=str(path))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module == "fastapi":
+                violations.append(path.name)
+            if isinstance(node, ast.Import) and any(
+                alias.name == "fastapi" for alias in node.names
+            ):
+                violations.append(path.name)
+
+    assert violations == []
