@@ -288,7 +288,7 @@
           <li><strong>Authorize and resolve evidence.</strong> The caller needs <code>review_submission</code>. Every supplied UUID must exist and be visible to that caller. Missing and inaccessible evidence use the same safe 404 response.</li>
           <li><strong>Bound the context.</strong> Query, each evidence body, and total serialized context have deterministic character limits. Oversize content is truncated and the run metadata records that fact.</li>
           <li><strong>Delimit untrusted data.</strong> The query and JSON evidence appear inside explicit <code>&lt;untrusted-query&gt;</code> and <code>&lt;untrusted-evidence&gt;</code> blocks. The system prompt says their contents are data, never instructions.</li>
-          <li><strong>Constrain generation.</strong> Ollama receives an explicit JSON schema, temperature 0, no tools (<code>tools: []</code>), a bounded output budget, and no stream.</li>
+          <li><strong>Constrain generation.</strong> Ollama receives an explicit JSON schema, temperature 0, no tools (<code>tools: []</code>), reasoning disabled (<code>think: false</code>), a bounded output budget, and no stream.</li>
           <li><strong>Validate twice.</strong> Pydantic validates the structure and enumerations. Every supporting/evidence-assessment ID must be a subset of supplied evidence. The server then forces <code>human_review_required: true</code>.</li>
           <li><strong>Fail safe.</strong> Malformed JSON gets one schema reminder. Continued invalidity or model unavailability returns a low-confidence <code>no_strong_match</code> result with an error and manual-review wording.</li>
           <li><strong>Audit and cache.</strong> <code>ai_inference_runs</code> stores query hash, evidence IDs, prompt version, model/digest, result, latency, outcome, and error. Cache identity covers normalized query hash, sorted evidence IDs, prompt version, and model digest.</li>
@@ -298,7 +298,7 @@
             <div class="node guard">Visible evidence only</div><div class="arrow">→</div>
             <div class="node">Bound + delimit context</div><div class="arrow">→</div>
             <div class="node worker">Durable explanation job</div><div class="arrow">→</div>
-            <div class="node">Ollama JSON schema, no tools</div><div class="arrow">→</div>
+            <div class="node">Ollama JSON schema, no tools/thinking</div><div class="arrow">→</div>
             <div class="node guard">Pydantic + evidence-ID validation</div><div class="arrow">→</div>
             <div class="node db">Audited result/cache</div>
           </div>
@@ -320,7 +320,7 @@
     A->>D: Commit inference run + outbox job
     A-->>C: 202 + run_id
     W->>D: Claim generate_explanation
-    W->>L: Bounded untrusted evidence, JSON schema, tools=[]
+    W->>L: Bounded untrusted evidence, JSON schema, tools=[], think=false
     L-->>W: Structured JSON
     W->>W: Pydantic + evidence subset + human review
     W->>D: Store result, latency and outcome
@@ -500,6 +500,11 @@ PYTHONPATH=backend python -m app.jobs.worker --batch-size 10</pre>
         </ol>
         <h3>Database recovery objective</h3>
         <p>Production backup controls target a <strong>15-minute RPO</strong> with encrypted WAL archiving and a <strong>four-hour RTO</strong> with rehearsed point-in-time restore. The complete recovery and validation procedure is in <code>docs/operations/backup-restore.md</code>.</p>
+        <h3>Production-shaped search benchmark</h3>
+        <pre>DATABASE_URL=postgresql+psycopg://…/naz_search_benchmark \
+PYTHONPATH=backend python -m scripts.benchmark_search \
+  --records 100000 --allow-isolated-write-benchmark</pre>
+        <p>The command refuses non-isolated database names, inserts generated records inside one transaction, runs the real PostgreSQL lexical retriever, reports p50/p95/p99/max, fails when p95 exceeds 3,000 ms, and rolls the records back. The local 5 August 2026 acceptance run used eight warm-ups and 40 measured queries over 100,000 records: p50 148.151 ms, p95 160.512 ms, p99/max 168.316 ms. This measures the required lexical continuity path; re-run on target storage and measure the complete hybrid path with the approved Ollama hardware and populated chunk index before site acceptance.</p>
       </section>
 
       <section id="monitoring">
@@ -562,7 +567,7 @@ PYTHONPATH=backend python -m app.jobs.worker --batch-size 10</pre>
               <tr><td>Durable execution</td><td><code>backend/app/jobs/queue.py</code>, <code>backend/app/jobs/worker.py</code></td></tr>
               <tr><td>Exact matching/evaluation</td><td><code>backend/app/similarity/normalization.py</code>, <code>backend/app/similarity/duplicate_detection.py</code>, <code>backend/app/similarity/evaluation.py</code></td></tr>
               <tr><td>Schema and migrations</td><td><code>backend/app/models/models.py</code>, <code>backend/alembic/versions/20260805_0007…0011</code></td></tr>
-              <tr><td>Operations</td><td><code>backend/app/services/readiness.py</code>, <code>backend/app/observability/</code>, <code>deploy/</code>, <code>.github/workflows/ci.yml</code></td></tr>
+              <tr><td>Operations</td><td><code>backend/app/services/readiness.py</code>, <code>backend/app/observability/</code>, <code>backend/app/ai/retrieval/benchmark.py</code>, <code>backend/scripts/benchmark_search.py</code>, <code>deploy/</code>, <code>.github/workflows/ci.yml</code></td></tr>
             </tbody>
           </table>
         </div>
