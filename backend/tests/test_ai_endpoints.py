@@ -1,0 +1,176 @@
+from datetime import date, datetime, timedelta, timezone
+from uuid import uuid4
+
+from app.ai.dependencies import get_ai_service
+from app.ai.schemas import AIExplanation
+from app.lib.auth import create_access_token
+from app.main import app
+from app.models import (
+    AuditLog,
+    ParliamentaryRecord,
+    ParliamentarySession,
+    Permission,
+    ReviewDecision,
+    Role,
+    User,
+    UserSession,
+)
+
+
+class FakeAIService:
+    def __init__(self, *, supporting_ids=(), human_review_required=False):
+        self.supporting_ids = list(supporting_ids)
+        self.human_review_required = human_review_required
+        self.evidence = None
+
+    def explain(self, query_text, evidence):
+        self.evidence = evidence
+        return AIExplanation(
+            classification="potential_duplicate",
+            confidence="high",
+            summary="Grounded test explanation",
+            supporting_record_ids=self.supporting_ids,
+            human_review_required=self.human_review_required,
+            model="test-model",
+        )
+
+
+def _user(db_session, employee_id, *permission_codes):
+    permissions = [
+        Permission(code=code, description=code)
+        for code in permission_codes
+    ]
+    user = User(
+        employee_id=employee_id,
+        name=employee_id,
+        role="Test",
+        status="Active",
+        roles=[Role(name=f"{employee_id} role", permissions=permissions)],
+    )
+    db_session.add(user)
+    db_session.commit()
+    return user
+
+
+def _headers(db_session, user):
+    token, jti = create_access_token({"sub": str(user.id)})
+    now = datetime.now(timezone.utc)
+    db_session.add(
+        UserSession(
+            user_id=user.id,
+            jti=jti,
+            issued_at=now,
+            expires_at=now + timedelta(hours=8),
+        )
+    )
+    db_session.commit()
+    return {"Authorization": f"Bearer {token}"}
+
+
+def _record(db_session, *, status="Under Review", code="AI-ENDPOINT"):
+    session = ParliamentarySession(
+        code=code,
+        name=f"{code} session",
+        start_date=date(2026, 1, 1),
+        end_date=date(2026, 12, 31),
+        status="Active",
+    )
+    record = ParliamentaryRecord(
+        item_type="Question",
+        session=session,
+        member="Hon. AI Reviewer",
+        ministry="Ministry of Testing",
+        answer_type="Written",
+        subject="AI evidence record",
+        full_text="Historical evidence used to validate the secured AI endpoint.",
+        status=status,
+    )
+    db_session.add(record)
+    db_session.commit()
+    return record
+
+
+def test_ai_explain_requires_review_permission(client, db_session):
+    record = _record(db_session)
+    viewer = _user(db_session, "EMP-AI-VIEWER")
+    fake = FakeAIService()
+    app.dependency_overrides[get_ai_service] = lambda: fake
+
+    response = client.post(
+        "/ai/explain",
+        json={"query_text": "new draft", "record_ids": [str(record.id)]},
+        headers=_headers(db_session, viewer),
+    )
+
+    assert response.status_code == 403
+    assert fake.evidence is None
+
+
+def test_ai_explain_hides_inaccessible_archive(client, db_session):
+    record = _record(db_session, status="Archived", code="AI-ARCHIVE")
+    reviewer = _user(db_session, "EMP-AI-REVIEWER", "review_submission")
+    fake = FakeAIService()
+    app.dependency_overrides[get_ai_service] = lambda: fake
+
+    response = client.post(
+        "/ai/explain",
+        json={"query_text": "new draft", "record_ids": [str(record.id)]},
+        headers=_headers(db_session, reviewer),
+    )
+
+    assert response.status_code == 404
+    assert fake.evidence is None
+
+
+def test_ai_explain_sanitizes_model_ids_forces_review_and_audits(
+    client,
+    db_session,
+):
+    record = _record(db_session, status="Archived", code="AI-AUDIT")
+    reviewer = _user(
+        db_session,
+        "EMP-AI-AUDITOR",
+        "review_submission",
+        "view_archive",
+    )
+    fake = FakeAIService(
+        supporting_ids=[record.id, uuid4()],
+        human_review_required=False,
+    )
+    app.dependency_overrides[get_ai_service] = lambda: fake
+
+    response = client.post(
+        "/ai/explain",
+        json={"query_text": "new draft", "record_ids": [str(record.id)]},
+        headers=_headers(db_session, reviewer),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["supporting_record_ids"] == [str(record.id)]
+    assert response.json()["human_review_required"] is True
+    assert fake.evidence[0]["record_id"] == record.id
+    audit = db_session.query(AuditLog).filter_by(action="ai_explanation").one()
+    assert audit.user_id == reviewer.id
+    assert audit.entity_id == str(record.id)
+
+
+def test_ai_review_uses_established_decision_vocabulary(client, db_session):
+    record = _record(db_session, code="AI-REVIEW-RECORD")
+    similar = _record(db_session, status="Archived", code="AI-REVIEW-SIMILAR")
+    reviewer = _user(db_session, "EMP-AI-DECIDER", "review_submission")
+
+    response = client.post(
+        "/ai/review",
+        json={
+            "record_id": str(record.id),
+            "similar_record_id": str(similar.id),
+            "decision": "Duplicate",
+            "notes": "Confirmed by a human reviewer",
+        },
+        headers=_headers(db_session, reviewer),
+    )
+
+    assert response.status_code == 200
+    saved = db_session.get(ReviewDecision, response.json()["review_id"])
+    assert saved.decision == "Duplicate"
+    assert saved.is_duplicate is True

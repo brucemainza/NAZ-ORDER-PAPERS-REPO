@@ -1,4 +1,5 @@
 from uuid import UUID
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -63,7 +64,7 @@ class AIReviewSubmission(BaseModel):
 
     record_id: UUID
     similar_record_id: UUID | None = None
-    decision: str = Field(..., pattern="^(duplicate|similar|related|unrelated)$")
+    decision: Literal["Clear (New)", "Duplicate", "Substantially Similar"]
     notes: str | None = None
 
 
