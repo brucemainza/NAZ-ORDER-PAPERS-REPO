@@ -65,15 +65,43 @@ class ReadinessProbe:
         )
 
     def _ai(self) -> dict:
+        base_url = self._settings.ollama_base_url
         try:
             response = httpx.get(
-                f"{self._settings.ollama_base_url}/api/tags",
+                f"{base_url}/api/tags",
                 timeout=self._settings.readiness_ai_timeout_seconds,
             )
             response.raise_for_status()
-            return {"status": "healthy", "required": False}
+            models = {
+                model.get("name") or model.get("model")
+                for model in response.json().get("models", [])
+            }
+            required_models = {
+                self._settings.ollama_embedding_model,
+                self._settings.ollama_llm_model,
+            }
+            missing_models = sorted(required_models - models)
+            if missing_models:
+                return {
+                    "status": "unhealthy",
+                    "required": True,
+                    "base_url": base_url,
+                    "error": "Required Ollama models are not loaded",
+                    "missing_models": missing_models,
+                }
+            return {
+                "status": "healthy",
+                "required": True,
+                "base_url": base_url,
+                "models": sorted(required_models),
+            }
         except Exception:
-            return {"status": "degraded", "required": False}
+            return {
+                "status": "unavailable",
+                "required": True,
+                "base_url": base_url,
+                "error": "Ollama is unreachable",
+            }
 
     def _worker_and_queue(self, database_healthy: bool) -> tuple[dict, dict]:
         if not database_healthy:
@@ -101,6 +129,7 @@ class ReadinessProbe:
                 if age <= self._settings.worker_stale_seconds
                 else "stale"
             )
+        queue_status = "unhealthy" if queue.dead_letter else "healthy"
         return (
             {
                 "status": worker_status,
@@ -108,7 +137,7 @@ class ReadinessProbe:
                 "last_seen_at": last_seen.isoformat() if last_seen else None,
             },
             {
-                "status": "healthy",
+                "status": queue_status,
                 "pending": queue.pending,
                 "running": queue.running,
                 "retry": queue.retry,
@@ -120,12 +149,18 @@ class ReadinessProbe:
     def snapshot(self) -> dict:
         database, schema, core_ready = self._database_and_schema()
         worker, queue = self._worker_and_queue(database["status"] == "healthy")
+        ai = self._ai()
+        ready = (
+            core_ready
+            and ai["status"] == "healthy"
+            and queue.get("status") == "healthy"
+        )
         return {
-            "status": "ready" if core_ready else "not_ready",
+            "status": "ready" if ready else "not_ready",
             "checks": {
                 "database": database,
                 "schema": schema,
-                "ai": self._ai(),
+                "ai": ai,
                 "worker": worker,
                 "queue": queue,
             },

@@ -2,7 +2,11 @@ from datetime import date, datetime, timedelta, timezone
 from uuid import uuid4
 
 from app.ai.dependencies import get_ai_service
-from app.ai.schemas import AIExplanation
+from app.ai.schemas import (
+    AIExplanation,
+    RecordMatch,
+    SimilaritySearchResponse,
+)
 from app.lib.auth import create_access_token
 from app.main import app
 from app.models import (
@@ -33,6 +37,29 @@ class FakeAIService:
             supporting_record_ids=self.supporting_ids,
             human_review_required=self.human_review_required,
             model="test-model",
+        )
+
+
+class HealthyHybridSearchService:
+    def __init__(self, record_id):
+        self.record_id = record_id
+
+    def search(self, _request):
+        return SimilaritySearchResponse(
+            query_text="water access",
+            results=[
+                RecordMatch(
+                    record_id=self.record_id,
+                    score=1.0,
+                    lexical_rank=1,
+                    semantic_rank=1,
+                )
+            ],
+            embedding_model="embeddinggemma:300m",
+            total_lexical=1,
+            total_semantic=1,
+            retrieval_mode="hybrid",
+            degraded=False,
         )
 
 
@@ -105,6 +132,27 @@ def test_ai_explain_requires_review_permission(client, db_session):
 
     assert response.status_code == 403
     assert fake.evidence is None
+
+
+def test_ai_search_returns_healthy_hybrid_response_shape(client, db_session):
+    record = _record(db_session, code="AI-HYBRID")
+    user = _user(db_session, "EMP-AI-SEARCH", "view_archive")
+    app.dependency_overrides[get_ai_service] = lambda: HealthyHybridSearchService(
+        record.id
+    )
+
+    response = client.post(
+        "/ai/search",
+        json={"query_text": "water access"},
+        headers=_headers(db_session, user),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["retrieval_mode"] == "hybrid"
+    assert payload["degraded"] is False
+    assert payload["total_semantic"] == 1
+    assert payload["results"][0]["semantic_rank"] == 1
 
 
 def test_ai_explain_hides_inaccessible_archive(client, db_session):

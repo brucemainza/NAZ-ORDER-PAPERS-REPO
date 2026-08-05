@@ -128,6 +128,12 @@ def fail_job(
     job.locked_by = None
     if job.attempt_count >= job.max_attempts:
         job.status = "dead_letter"
+        logger.error(
+            "background job %s moved to dead_letter after %d attempts: %s",
+            job.id,
+            job.attempt_count,
+            job.last_error,
+        )
         return
     job.status = "retry"
     delay = min(2**job.attempt_count, MAX_BACKOFF_SECONDS)

@@ -1,3 +1,4 @@
+import logging
 from datetime import date, datetime, timedelta, timezone
 from uuid import uuid4
 
@@ -5,7 +6,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import engine
-from app.jobs.queue import enqueue_job, enqueue_outbox_job, queue_snapshot
+from app.jobs.queue import (
+    enqueue_job,
+    enqueue_outbox_job,
+    queue_snapshot,
+    requeue_dead_letter_job,
+)
 from app.jobs.worker import claim_jobs, fail_job, process_claimed_job, run_job
 from app.models import (
     BackgroundJob,
@@ -143,7 +149,7 @@ def test_repeated_enqueue_is_idempotent(db_session):
     assert db_session.query(BackgroundJob).count() == 1
 
 
-def test_failed_jobs_back_off_and_eventually_dead_letter(db_session):
+def test_failed_jobs_back_off_and_eventually_dead_letter(db_session, caplog):
     job = enqueue_job(
         db_session,
         job_type="embed_record",
@@ -160,9 +166,39 @@ def test_failed_jobs_back_off_and_eventually_dead_letter(db_session):
     assert job.next_attempt_at == initial_time + timedelta(seconds=2)
 
     job.attempt_count = 2
-    fail_job(job, RuntimeError("still offline"), now=initial_time)
+    with caplog.at_level(logging.ERROR):
+        fail_job(job, RuntimeError("still offline"), now=initial_time)
     assert job.status == "dead_letter"
     assert job.last_error == "still offline"
+    assert "moved to dead_letter" in caplog.text
+
+
+def test_dead_letter_job_can_be_manually_recovered_with_audit_note(db_session):
+    job = enqueue_job(
+        db_session,
+        job_type="embed_record",
+        payload={"record_id": str(uuid4())},
+        deduplication_key=f"embed:{uuid4()}:recover",
+        max_attempts=2,
+    )
+    job.status = "dead_letter"
+    job.attempt_count = 2
+    job.last_error = "Ollama connection refused"
+    db_session.commit()
+
+    recovered = requeue_dead_letter_job(
+        db_session,
+        job.id,
+        reason="Ollama connectivity restored on 2026-08-05",
+    )
+    db_session.commit()
+
+    assert recovered.status == "pending"
+    assert recovered.attempt_count == 0
+    assert recovered.last_error is None
+    assert recovered.payload["recovery_history"][-1]["reason"] == (
+        "Ollama connectivity restored on 2026-08-05"
+    )
 
 
 def test_embedding_handler_is_idempotent_for_same_model(db_session):

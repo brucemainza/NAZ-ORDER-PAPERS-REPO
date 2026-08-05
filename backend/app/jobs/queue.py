@@ -1,12 +1,15 @@
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from uuid import uuid4
+import logging
+from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.models import BackgroundJob, OutboxEvent
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -86,6 +89,52 @@ def enqueue_outbox_job(
                 job_id=job.id,
             )
         )
+    return job
+
+
+def requeue_dead_letter_job(
+    db: Session,
+    job_id: UUID,
+    *,
+    reason: str,
+) -> BackgroundJob:
+    """Recover one dead-letter job while preserving an auditable reason."""
+
+    recovery_reason = reason.strip()
+    if not recovery_reason:
+        raise ValueError("a recovery reason is required")
+    job = db.get(BackgroundJob, job_id)
+    if job is None:
+        raise LookupError(f"background job {job_id} was not found")
+    if job.status != "dead_letter":
+        raise ValueError(f"background job {job_id} is not dead-lettered")
+
+    recovered_at = datetime.now(timezone.utc)
+    payload = dict(job.payload or {})
+    history = list(payload.get("recovery_history", []))
+    history.append(
+        {
+            "recovered_at": recovered_at.isoformat(),
+            "reason": recovery_reason,
+            "previous_error": job.last_error,
+        }
+    )
+    payload["recovery_history"] = history
+    job.payload = payload
+    job.status = "pending"
+    job.attempt_count = 0
+    job.next_attempt_at = recovered_at
+    job.locked_at = None
+    job.lock_expires_at = None
+    job.locked_by = None
+    job.last_error = None
+    job.completed_at = None
+    job.updated_at = recovered_at
+    logger.warning(
+        "manually requeued dead-letter job %s: %s",
+        job.id,
+        recovery_reason,
+    )
     return job
 
 
