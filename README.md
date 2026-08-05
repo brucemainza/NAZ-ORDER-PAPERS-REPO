@@ -10,6 +10,7 @@ retrieval platform for the National Assembly of Zambia.
 - [File-by-file application guide](docs/file-guide.md)
 - [TDD implementation and verification report](docs/implementation-report.md)
 - [Pre-implementation baseline](docs/implementation-baseline.md)
+- [Production AI implementation (offline HTML)](docs/ai-explanation.html)
 
 ## Implemented Capabilities
 
@@ -27,7 +28,12 @@ retrieval platform for the National Assembly of Zambia.
 - Structured Order Paper generation from scheduled items.
 - Automatic startup archival after session end.
 - Permission-controlled archive list/detail/search.
-- BM25 full-content keyword search with relevance context and multi-dimensional filters.
+- PostgreSQL weighted full-text and versioned chunk-vector hybrid search with
+  relevance context, structured filters, and lexical-only degradation.
+- Durable PostgreSQL outbox/worker processing for indexing, explanations,
+  notifications, and archival work.
+- Grounded local-Ollama explanations with evidence validation and mandatory human
+  review.
 - Reports, audit trail, and audit CSV export.
 - Plain CSS UI with desktop/mobile Playwright visual baselines.
 
@@ -36,6 +42,7 @@ retrieval platform for the National Assembly of Zambia.
 - Next.js 14 App Router, React 18, plain CSS.
 - FastAPI, Pydantic, SQLAlchemy 2, psycopg 3.
 - PostgreSQL 16 with pgvector.
+- Local Ollama embeddings and structured explanation generation.
 - bcrypt password hashing and HS256 JWTs.
 - Docker Compose.
 - pytest, Node test runner, and Playwright/Chrome.
@@ -189,6 +196,6 @@ Blank/legacy unsupported statuses are normalized to `Archived`.
 - Ended-session archival runs at API startup rather than in a continuous worker.
 - Users and Sessions management pages currently change local demo state; persistent
   CRUD APIs are not implemented.
-- Embedding generation is absent, so BM25 is the normal similarity path.
-- Production migration, backup, rate-limit, MFA, and password-reset facilities are
-  not included.
+- Authentication hardening remains explicitly out of scope and its frozen PyJWT
+  dependency is a documented residual go-live risk.
+- Rate limiting, MFA, and password-reset facilities are not included.
