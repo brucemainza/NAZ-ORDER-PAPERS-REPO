@@ -9,7 +9,6 @@ import httpx
 from app.ai.interfaces import EmbeddingProvider
 from app.ai.normalization import normalize_for_embedding
 from app.config import Settings
-from app.observability.metrics import AI_MODEL_CALLS
 
 logger = logging.getLogger(__name__)
 
@@ -122,10 +121,6 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
                     raise ValueError("invalid embedding batch response")
                 with self._circuit_lock:
                     self._circuit_until = 0.0
-                AI_MODEL_CALLS.labels(
-                    operation="embedding_batch",
-                    outcome="success",
-                ).inc()
                 return [
                     [float(value) for value in embedding]
                     for embedding in embeddings
@@ -138,10 +133,6 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
         with self._circuit_lock:
             self._circuit_until = self._clock() + self._circuit_break_seconds
         logger.warning("Ollama embedding request failed after retries: %s", last_error)
-        AI_MODEL_CALLS.labels(
-            operation="embedding_batch",
-            outcome="failure",
-        ).inc()
         raise RuntimeError(
             f"Could not generate embeddings with Ollama at {self._base_url}"
         ) from last_error

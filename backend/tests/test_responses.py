@@ -5,10 +5,8 @@ from uuid import uuid4
 
 import pytest
 
-from app.email.base import EmailProvider
 from app.lib.auth import create_access_token
 from app.models import (
-    BackgroundJob,
     ParliamentaryRecord,
     ParliamentarySession,
     Permission,
@@ -16,8 +14,6 @@ from app.models import (
     User,
     UserSession,
 )
-from app.jobs.worker import claim_jobs, process_claimed_job
-from app.notifications.service import NotificationService
 
 
 def _load_response_service_module():
@@ -256,37 +252,11 @@ def test_response_idempotency_replays_original_and_rejects_changed_payload(
     assert db_session.query(models.QuestionResponse).count() == 1
 
 
-class FakeEmailProvider(EmailProvider):
-    def __init__(self):
-        self.calls = []
-
-    async def send_email(
-        self,
-        to,
-        subject,
-        body,
-        html_body=None,
-    ):
-        self.calls.append(
-            {
-                "to": to,
-                "subject": subject,
-                "body": body,
-                "html_body": html_body,
-            }
-        )
-        return True
-
-
-def test_recording_response_marks_question_answered_and_queues_notification(
+def test_recording_response_marks_question_answered(
     client,
     db_session,
 ):
     _load_response_service_module()
-    email_factory = importlib.import_module("app.email.factory")
-    provider = FakeEmailProvider()
-    app = importlib.import_module("app.main").app
-    app.dependency_overrides[email_factory.get_email_provider] = lambda: provider
     clerk = _user(
         db_session,
         prefix="ANSWERED-CLERK",
@@ -311,20 +281,6 @@ def test_recording_response_marks_question_answered_and_queues_notification(
     assert response.json()["status"] == "Answered"
     db_session.refresh(question)
     assert question.status == "Answered"
-    assert provider.calls == []
-    job = db_session.query(BackgroundJob).filter_by(job_type="notification").one()
-    claim_jobs(db_session, worker_id="response-mail-worker", limit=1)
-    db_session.commit()
-
-    assert process_claimed_job(
-        job.id,
-        notifier=NotificationService(provider),
-    ) is True
-    assert len(provider.calls) == 1
-    assert provider.calls[0]["to"] == "answered.submitter@parliament.gov.zm"
-    assert provider.calls[0]["subject"] == (
-        "Question status changed to Answered"
-    )
 
 
 class FailingStatusTransitioner:
@@ -357,6 +313,5 @@ def test_response_and_status_transition_are_atomic_on_forced_failure(db_session)
         )
 
     assert db_session.query(models.QuestionResponse).count() == 0
-    assert db_session.query(BackgroundJob).filter_by(job_type="notification").count() == 0
     db_session.refresh(question)
     assert question.status == "Scheduled"

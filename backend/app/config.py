@@ -9,16 +9,6 @@ load_dotenv()
 class Settings:
     database_url: str
     frontend_origin: str
-    email_provider: str
-    smtp_host: str
-    smtp_port: int
-    smtp_username: str | None
-    smtp_password: str | None
-    smtp_sender: str
-    smtp_use_tls: bool
-    smtp_timeout: float
-
-    # AI / local Ollama settings
     ollama_base_url: str
     ollama_embedding_model: str
     ollama_embedding_model_digest: str | None
@@ -49,10 +39,6 @@ class Settings:
     upload_parse_timeout_seconds: float
     upload_parse_memory_mb: int
     upload_temp_directory: str | None
-    upload_malware_scan_required: bool
-    clamav_host: str
-    clamav_port: int
-    clamav_timeout: float
     db_pool_size: int
     db_max_overflow: int
     db_pool_recycle_seconds: int
@@ -62,9 +48,6 @@ class Settings:
     log_json: bool
     worker_stale_seconds: int
     readiness_ai_timeout_seconds: float
-    otel_enabled: bool
-    otel_service_name: str
-    otel_exporter_otlp_endpoint: str | None
 
     def __init__(self) -> None:
         self.database_url = getenv(
@@ -72,24 +55,9 @@ class Settings:
             "postgresql+psycopg://naz_user:naz_password@localhost:5432/naz_order_papers",
         )
         self.frontend_origin = getenv("FRONTEND_ORIGIN", "http://localhost:3000")
-        self.email_provider = getenv("EMAIL_PROVIDER", "smtp").strip().casefold()
-        self.smtp_host = getenv("SMTP_HOST", "localhost").strip()
-        self.smtp_port = int(getenv("SMTP_PORT", "25"))
-        self.smtp_username = getenv("SMTP_USERNAME") or None
-        self.smtp_password = getenv("SMTP_PASSWORD") or None
-        self.smtp_sender = getenv(
-            "SMTP_SENDER",
-            "notifications@localhost",
-        ).strip()
-        self.smtp_use_tls = getenv("SMTP_USE_TLS", "false").strip().casefold() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
-        self.smtp_timeout = float(getenv("SMTP_TIMEOUT", "30"))
-
-        self.ollama_base_url = getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+        self.ollama_base_url = getenv(
+            "OLLAMA_BASE_URL", "http://localhost:11434"
+        ).rstrip("/")
         self.ollama_embedding_model = getenv(
             "OLLAMA_EMBEDDING_MODEL", "embeddinggemma:300m"
         )
@@ -108,7 +76,9 @@ class Settings:
         self.ai_explanation_enabled = getenv(
             "AI_EXPLANATION_ENABLED", "true"
         ).strip().casefold() in {"1", "true", "yes", "on"}
-        self.ai_explanation_max_tokens = int(getenv("AI_EXPLANATION_MAX_TOKENS", "400"))
+        self.ai_explanation_max_tokens = int(
+            getenv("AI_EXPLANATION_MAX_TOKENS", "400")
+        )
         self.ai_explanation_query_max_chars = int(
             getenv("AI_EXPLANATION_QUERY_MAX_CHARS", "4000")
         )
@@ -118,9 +88,7 @@ class Settings:
         self.ai_explanation_context_max_chars = int(
             getenv("AI_EXPLANATION_CONTEXT_MAX_CHARS", "18000")
         )
-        self.ai_prompt_version = getenv(
-            "AI_PROMPT_VERSION", "grounded-v1"
-        ).strip()
+        self.ai_prompt_version = getenv("AI_PROMPT_VERSION", "grounded-v1").strip()
         self.ai_request_timeout = float(getenv("AI_REQUEST_TIMEOUT", "120"))
         self.ai_connect_timeout = float(getenv("AI_CONNECT_TIMEOUT", "5"))
         self.ai_max_retries = int(getenv("AI_MAX_RETRIES", "2"))
@@ -128,9 +96,7 @@ class Settings:
             getenv("AI_CIRCUIT_BREAK_SECONDS", "30")
         )
         self.ai_chunk_max_chars = int(getenv("AI_CHUNK_MAX_CHARS", "1800"))
-        self.ai_chunk_overlap_chars = int(
-            getenv("AI_CHUNK_OVERLAP_CHARS", "240")
-        )
+        self.ai_chunk_overlap_chars = int(getenv("AI_CHUNK_OVERLAP_CHARS", "240"))
         self.ai_preprocessing_version = getenv(
             "AI_PREPROCESSING_VERSION", "chunks-v1"
         ).strip()
@@ -155,12 +121,6 @@ class Settings:
         self.upload_temp_directory = (
             getenv("UPLOAD_TEMP_DIRECTORY", "").strip() or None
         )
-        self.upload_malware_scan_required = getenv(
-            "UPLOAD_MALWARE_SCAN_REQUIRED", "true"
-        ).strip().casefold() in {"1", "true", "yes", "on"}
-        self.clamav_host = getenv("CLAMAV_HOST", "clamav").strip()
-        self.clamav_port = int(getenv("CLAMAV_PORT", "3310"))
-        self.clamav_timeout = float(getenv("CLAMAV_TIMEOUT", "10"))
         self.db_pool_size = int(getenv("DB_POOL_SIZE", "10"))
         self.db_max_overflow = int(getenv("DB_MAX_OVERFLOW", "20"))
         self.db_pool_recycle_seconds = int(
@@ -180,19 +140,6 @@ class Settings:
         self.worker_stale_seconds = int(getenv("WORKER_STALE_SECONDS", "30"))
         self.readiness_ai_timeout_seconds = float(
             getenv("READINESS_AI_TIMEOUT_SECONDS", "1")
-        )
-        self.otel_enabled = getenv("OTEL_ENABLED", "false").strip().casefold() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
-        self.otel_service_name = getenv(
-            "OTEL_SERVICE_NAME",
-            "naz-order-papers-api",
-        ).strip()
-        self.otel_exporter_otlp_endpoint = (
-            getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "").strip() or None
         )
 
 

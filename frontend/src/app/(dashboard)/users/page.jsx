@@ -55,6 +55,7 @@ export default function UsersPage() {
       <PageHeader title="Users" description="Manage authorised staff accounts, role assignment and account status." actions={<Button onClick={() => setIsModalOpen(true)}>Invite User</Button>}/>
 
       <Table columns={columns} data={users} rowKey={(row) => row.id} emptyMessage="No users have been added yet."/>
+      <p className="users-page__count">Showing {users.length} of {users.length} authorised users</p>
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Invite User" description="Create a placeholder account for a new authorised staff member." footer={<>
             <Button variant="secondary" onClick={() => setIsModalOpen(false)}>

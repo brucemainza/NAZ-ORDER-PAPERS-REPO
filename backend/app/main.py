@@ -8,12 +8,12 @@ from app.database import SessionLocal
 from app.db_compat import seed_runtime_authorization
 from app.observability.logging import configure_structured_logging
 from app.observability.middleware import RequestObservabilityMiddleware
-from app.observability.tracing import configure_tracing
 from app.ai import router as ai_router
 from app.routers import (
     audit,
     auth,
     health,
+    notifications,
     order_papers,
     records,
     reports,
@@ -63,6 +63,7 @@ app.add_middleware(
 app.add_middleware(RequestObservabilityMiddleware)
 
 app.include_router(health.router)
+app.include_router(notifications.router)
 app.include_router(sessions.router)
 app.include_router(order_papers.router)
 app.include_router(records.router)
@@ -78,4 +79,3 @@ app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(workflow_reviews.router)
 app.include_router(ai_router.router)
-configure_tracing(app, settings)

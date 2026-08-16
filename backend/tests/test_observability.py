@@ -63,14 +63,3 @@ def test_structured_logging_redacts_credentials_tokens_and_prompts():
     assert "private-parliament-text" not in rendered
     assert "secret-record" not in rendered
     assert "[REDACTED]" in rendered
-
-
-def test_prometheus_metrics_expose_request_latency_and_failures(client):
-    client.get("/livez")
-
-    response = client.get("/metrics")
-
-    assert response.status_code == 200
-    assert "naz_http_requests_total" in response.text
-    assert "naz_http_request_duration_seconds" in response.text
-    assert "naz_background_queue_depth" in response.text

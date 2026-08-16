@@ -42,7 +42,10 @@ def upgrade_to_head(database_url: str | None = None) -> None:
     engine = create_engine(url, pool_pre_ping=True)
     config = Config(Path(__file__).parents[1] / "alembic.ini")
     try:
-        with engine.connect() as connection:
+        # Alembic uses the supplied connection's existing transaction. Using
+        # engine.begin() ensures successful migrations are committed when the
+        # context exits; engine.connect() would roll them back on close.
+        with engine.begin() as connection:
             with migration_lock(connection):
                 config.attributes["connection"] = connection
                 config.attributes["database_url"] = url

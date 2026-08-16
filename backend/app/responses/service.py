@@ -6,7 +6,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import ParliamentaryRecord, QuestionResponse
-from app.notifications.tasks import enqueue_status_change_notification
 from app.services.status_transition import StatusTransitioner
 from app.services.submission_status import SubmissionStatus
 
@@ -84,7 +83,6 @@ class ResponseRecordingService(ResponseRecorder):
             recorded_by=recorded_by,
         )
         self._db.add(response)
-        old_status = record.status
         try:
             self._status_transitioner.transition(
                 record,
@@ -95,14 +93,4 @@ class ResponseRecordingService(ResponseRecorder):
             self._db.rollback()
             raise
 
-        enqueue_status_change_notification(
-            self._db,
-            event_key=f"question-response:{response.id}",
-            recipient=record.submitter.email if record.submitter else None,
-            record_id=record.id,
-            item_type=record.item_type,
-            subject=record.subject,
-            old_status=old_status,
-            new_status=record.status,
-        )
         return response

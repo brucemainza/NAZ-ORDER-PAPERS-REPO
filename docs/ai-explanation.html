@@ -169,7 +169,7 @@
     <div class="hero__inner">
       <p class="eyebrow">National Assembly of Zambia · Order Papers</p>
       <h1>Production AI implementation</h1>
-      <p class="lede">A code-aligned guide to exact duplicate detection, PostgreSQL full-text search, versioned chunk embeddings, durable local-AI jobs, grounded explanations, degraded operation, security, and production support.</p>
+      <p class="lede">A code-aligned guide to the running prototype: PostgreSQL lexical search, Ollama embeddings, pgvector passage retrieval, reciprocal-rank fusion, durable recovery, strict AI readiness, and grounded human-reviewed explanations.</p>
       <div class="hero__meta">
         <span class="pill">Local-only Ollama</span>
         <span class="pill">PostgreSQL 16 + pgvector</span>
@@ -209,14 +209,15 @@
         <p>The AI layer assists parliamentary staff in finding related historical records and explaining the retrieved evidence. It does not answer a parliamentary question, make a procedural decision, or change a record by itself.</p>
         <div class="grid three">
           <div class="card"><div class="kpi">Local</div><h4>No external model API</h4><p>Embedding and explanation calls go to the configured Ollama service. Parliamentary prompts and text are not sent to a cloud AI provider by this implementation.</p></div>
-          <div class="card"><div class="kpi">Durable</div><h4>Database-backed work</h4><p>Indexing, explanation, notification, and archival work is represented by committed PostgreSQL jobs and outbox events.</p></div>
+          <div class="card"><div class="kpi">Durable</div><h4>Database-backed work</h4><p>Indexing, explanation, and archival work is represented by committed PostgreSQL jobs and outbox events with leases, retries, visible dead letters, and audited recovery.</p></div>
           <div class="card"><div class="kpi">Advisory</div><h4>Human review enforced</h4><p>The server overwrites <code>human_review_required</code> with <code>true</code>, even if model output says otherwise.</p></div>
         </div>
         <div class="callout warn"><strong>Important:</strong> the response field called <code>score</code> is retained for compatibility and is a ranking score. It is not a calibrated probability. Where available, raw semantic closeness is returned separately as <code>cosine_similarity</code>.</div>
       </section>
 
       <section id="architecture">
-        <h2>2. System architecture</h2>
+        <h2>2. AI RAG system architecture</h2>
+        <div class="callout info"><strong>Two authoritative diagrams:</strong> this section shows the hybrid RAG pipeline as a static diagram. Section 18 shows the full UML component architecture for the complete Compose application.</div>
         <div class="legacy-diagram" role="img" aria-label="Production AI architecture in the original document diagram style">
           <span class="user">Parliamentary staff</span><br>
           &nbsp;&nbsp;│<br>
@@ -224,37 +225,37 @@
           <span class="box">Next.js frontend + same-origin BFF</span><br>
           &nbsp;&nbsp;│ JSON over protected application routes<br>
           &nbsp;&nbsp;▼<br>
-          <span class="box">FastAPI backend — domain routes + AI router</span><br>
-          &nbsp;&nbsp;├─→ <span class="guard">existing authentication boundary</span> (unchanged)<br>
-          &nbsp;&nbsp;├─→ <span class="guard">permissions + record visibility + validation + audit</span><br>
-          &nbsp;&nbsp;├─→ <span class="box">exact normalized SHA-256 lookup</span><br>
-          &nbsp;&nbsp;├─→ <span class="box">PostgreSQL weighted full-text search</span><br>
-          &nbsp;&nbsp;└─→ <span class="box">compatible chunk-vector retrieval</span><br>
+          <span class="box">FastAPI hybrid retrieval orchestrator</span><br>
+          &nbsp;&nbsp;├─→ <span class="guard">JWT session + permissions + record visibility + filters</span><br>
+          &nbsp;&nbsp;├─→ <span class="box">PostgreSQL weighted FTS → lexical top-k</span><br>
+          &nbsp;&nbsp;└─→ <span class="model">Ollama /api/embed at host.docker.internal:11434</span><br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└─→ <span class="db">pgvector compatible chunk search → semantic top-k</span><br>
           &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br>
           &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;▼<br>
-          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="box">Reciprocal Rank Fusion top-k</span><br>
-          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│ optional grounded explanation<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="box">Reciprocal Rank Fusion (k=60) → final top-k</span><br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│ optional evidence-grounded explanation<br>
           &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;▼<br>
-          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="model">Ollama — embeddinggemma + qwen3.5</span><br>
-          &nbsp;&nbsp;│<br>
-          &nbsp;&nbsp;├─→ <span class="db">PostgreSQL + pgvector — records, FTS, chunks, audit</span><br>
-          &nbsp;&nbsp;└─→ <span class="worker">outbox events → durable workers → retries/dead letters</span>
-          <span class="diagram-caption">Static diagram in the restored original monospaced architecture style, with labels updated to the implemented production design.</span>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="model">Ollama qwen3.5:4b → validated JSON → human review</span><br>
+          &nbsp;&nbsp;├─→ <span class="db">PostgreSQL + pgvector — records, tsvector, vector(768) chunks, audit</span><br>
+          &nbsp;&nbsp;└─→ <span class="worker">durable worker → exponential retry → visible dead letter → audited recovery</span>
+          <span class="diagram-caption">Healthy searches combine lexical and semantic ranks. Embedding failure is explicit lexical fallback, while strict readiness returns 503 until Ollama and the durable queue are healthy.</span>
         </div>
         <details>
           <summary>Mermaid source — component architecture</summary>
-          <pre class="mermaid-source">flowchart LR
-  UI[Next.js UI + BFF] -- JSON --> API[FastAPI AI routes]
-  API --> GUARD[Permission + record visibility]
-  GUARD --> EXACT[Normalized SHA-256 lookup]
-  GUARD --> FTS[PostgreSQL weighted FTS]
-  GUARD --> VEC[Compatible chunk-vector search]
-  FTS --> RRF[Reciprocal Rank Fusion]
+          <pre class="mermaid-source">flowchart TB
+  UI[Next.js UI + BFF] -- authenticated JSON --> API[FastAPI hybrid search]
+  API --> GUARD[Permission + visibility + structured filters]
+  GUARD --> FTS[PostgreSQL weighted tsvector + GIN]
+  GUARD --> EMBED[Ollama /api/embed on bridge port 11434]
+  EMBED --> VEC[pgvector vector(768) compatible chunk search]
+  FTS --> RRF[Reciprocal Rank Fusion k=60]
   VEC --> RRF
+  RRF --> RESULTS[Hybrid results: lexical rank + semantic rank + excerpt]
+  EMBED -. failure .-> FALLBACK[Explicit lexical fallback: degraded=true]
   API --> DB[(PostgreSQL + pgvector)]
   DB --> JOBS[background_jobs + outbox_events]
-  JOBS -- FOR UPDATE SKIP LOCKED --> WORKER[Workers]
-  WORKER --> OLLAMA[Local Ollama]
+  JOBS -- FOR UPDATE SKIP LOCKED --> WORKER[Durable worker]
+  WORKER --> EMBED
   WORKER --> CHUNKS[(record_chunks)]
   WORKER --> RUNS[(ai_inference_runs)]</pre>
         </details>
@@ -400,13 +401,12 @@
               <tr><td><code>reindex_record</code></td><td>Rebuild compatibility/chunk embeddings</td><td>Record/model identity is part of the deduplication key.</td></tr>
               <tr><td><code>index_record_chunks</code></td><td>Versioned passage indexing</td><td>Existing chunk index + hash + model digest + preprocessing version is reused.</td></tr>
               <tr><td><code>generate_explanation</code></td><td>Grounded explanation inference</td><td>Unique cache key and job key prevent duplicate completed runs.</td></tr>
-              <tr><td><code>notification</code></td><td>Escaped status-change email</td><td>One outbox/job identity; provider failure retries without rolling back the domain action.</td></tr>
               <tr><td><code>archive_records</code></td><td>Archive records from ended sessions</td><td>Status transition is repeat-safe.</td></tr>
             </tbody>
           </table>
         </div>
         <p>Failures store a bounded error, clear the lease, and schedule exponential backoff (<code>2^attempt_count</code> seconds, capped at one hour). The default maximum is five attempts; exhausted jobs become <code>dead_letter</code>. A five-minute lock expiry allows another worker to reclaim interrupted work. Successful handlers mark linked outbox events published in the same completion transaction.</p>
-        <p>Each polling cycle upserts <code>worker_heartbeats</code> and refreshes queue metrics. Run once with <code>python -m app.jobs.worker --once</code>, or continuously with optional <code>--poll-seconds</code>, <code>--batch-size</code>, and <code>--worker-id</code>.</p>
+        <p>Each polling cycle upserts <code>worker_heartbeats</code>. Queue depth and dead-letter state are read directly from PostgreSQL by readiness. Run once with <code>python -m app.jobs.worker --once</code>, or continuously with optional <code>--poll-seconds</code>, <code>--batch-size</code>, and <code>--worker-id</code>.</p>
       </section>
 
       <section id="api">
@@ -434,8 +434,7 @@
         <ul>
           <li><code>GET /livez</code> — process liveness with no dependency calls.</li>
           <li><code>GET /health</code> — compatibility alias for liveness.</li>
-          <li><code>GET /readyz</code> — database and Alembic-head readiness; AI and worker states are reported separately and are non-blocking for core readiness.</li>
-          <li><code>GET /metrics</code> — Prometheus exposition; excluded from OpenAPI.</li>
+          <li><code>GET /readyz</code> — strict traffic readiness. PostgreSQL and the exact Alembic head, required Ollama models, and a zero dead-letter count are mandatory. Failure returns HTTP 503 with a specific check.</li>
         </ul>
       </section>
 
@@ -466,7 +465,7 @@
           <table>
             <thead><tr><th>Variable</th><th>Default</th><th>Meaning</th></tr></thead>
             <tbody>
-              <tr><td><code>OLLAMA_BASE_URL</code></td><td><code>http://localhost:11434</code></td><td>Local Ollama base URL.</td></tr>
+              <tr><td><code>OLLAMA_BASE_URL</code></td><td><code>http://localhost:11434</code> outside containers; <code>http://host.docker.internal:11434</code> in Compose</td><td>Single canonical Ollama API port. The host listener is bridge-scoped at <code>172.17.0.1:11434</code>, not exposed to the LAN.</td></tr>
               <tr><td><code>OLLAMA_EMBEDDING_MODEL</code></td><td><code>embeddinggemma:300m</code></td><td>Embedding model tag.</td></tr>
               <tr><td><code>OLLAMA_EMBEDDING_MODEL_DIGEST</code></td><td>empty</td><td>Exact approved digest; provider otherwise resolves it from Ollama tags.</td></tr>
               <tr><td><code>OLLAMA_LLM_MODEL</code></td><td><code>qwen3.5:4b</code></td><td>Grounded explanation model tag.</td></tr>
@@ -493,7 +492,7 @@
               <tr><td><code>DUPLICATE_SIMILARITY_THRESHOLD</code></td><td>0.95</td><td>Candidate threshold; deployment requires measured 95% precision.</td></tr>
               <tr><td><code>AUTOMATIC_LINK_SIMILARITY_THRESHOLD</code></td><td>0.99</td><td>Automatic-link candidate threshold; deployment requires measured 98% precision.</td></tr>
               <tr><td><code>PREVIOUSLY_ADDRESSED_THRESHOLD</code></td><td>0.72</td><td>Broader historical-topic candidate threshold.</td></tr>
-              <tr><td><code>READINESS_AI_TIMEOUT_SECONDS</code></td><td>1</td><td>Fast non-blocking Ollama readiness observation.</td></tr>
+              <tr><td><code>READINESS_AI_TIMEOUT_SECONDS</code></td><td>1</td><td>Fast mandatory Ollama readiness check.</td></tr>
               <tr><td><code>WORKER_STALE_SECONDS</code></td><td>30</td><td>Heartbeat age after which worker status is stale.</td></tr>
             </tbody>
           </table>
@@ -521,13 +520,12 @@
             <thead><tr><th>Failure</th><th>User-visible behaviour</th><th>Recovery / operator action</th></tr></thead>
             <tbody>
               <tr><td>Ollama unreachable during submission</td><td>Domain record still commits; compatibility embedding may be null; warning says semantic indexing is queued.</td><td>Durable job retries. Restore Ollama and inspect queue depth/dead letters.</td></tr>
-              <tr><td>Ollama unreachable during search</td><td>PostgreSQL lexical results return with degraded metadata.</td><td>Core readiness stays healthy; AI status is degraded. Circuit closes after the configured interval.</td></tr>
+              <tr><td>Ollama unreachable during search</td><td>The request can return explicit lexical fallback metadata.</td><td><code>/readyz</code> returns 503 and prevents the Compose frontend readiness gate from treating the application as healthy. Restore bridge connectivity/model availability and allow the circuit interval to close.</td></tr>
               <tr><td>Wrong embedding dimension/order/count</td><td>No corrupt vector is stored; job fails safely.</td><td>Correct model/dimension, then retry/requeue the failed indexing work.</td></tr>
               <tr><td>Model digest changed</td><td>Stale vectors are excluded from semantic retrieval.</td><td>Pin the approved digest and run resumable reindexing until coverage is complete.</td></tr>
               <tr><td>Invalid explanation JSON or fabricated ID</td><td>One constrained retry, then a low-confidence manual-review fallback.</td><td>Inspect inference outcome/error and local model health; evidence remains authoritative.</td></tr>
               <tr><td>Worker interrupted</td><td>Job remains running until its lease expires.</td><td>Another worker reclaims it after lock expiry; handler identity prevents duplicates.</td></tr>
               <tr><td>Database or migration mismatch</td><td><code>/readyz</code> returns 503 and traffic should not be routed to the API.</td><td>Run the advisory-locked migration job and verify Alembic head.</td></tr>
-              <tr><td>Email provider unavailable</td><td>Domain action remains committed.</td><td>Notification job retries and eventually dead-letters without rolling back the domain record.</td></tr>
             </tbody>
           </table>
         </div>
@@ -541,7 +539,7 @@
           <li>Build, scan, sign, and digest-pin API/frontend/PostgreSQL/Ollama images.</li>
           <li>Run <code>PYTHONPATH=backend python -m scripts.migrate</code> as the one-shot release gate.</li>
           <li>Start at least two API and two worker replicas; start Ollama with approved model digests.</li>
-          <li>Check <code>/livez</code>, <code>/readyz</code>, <code>/metrics</code>, worker heartbeat, queue depth, and index coverage.</li>
+          <li>Check <code>/livez</code>, <code>/readyz</code>, worker heartbeat, queue depth, and index coverage.</li>
         </ol>
         <h3>Resumable backfill</h3>
         <pre>PYTHONPATH=backend python -m scripts.reindex_records --batch-size 100
@@ -566,12 +564,11 @@ PYTHONPATH=backend python -m scripts.benchmark_search \
       </section>
 
       <section id="monitoring">
-        <h2>13. Health, metrics, tracing, and alerts</h2>
+        <h2>13. Health, diagnostics, and operational signals</h2>
         <div class="grid">
-          <div class="card"><h4>Core readiness</h4><p>Database connectivity and the exact Alembic head decide ready/not-ready. Ollama and worker state are informational so lexical/core workflows remain available.</p></div>
+          <div class="card"><h4>Strict readiness</h4><p>Database connectivity, exact Alembic head, reachable Ollama with both required models, and zero dead-letter jobs decide ready/not-ready. Worker heartbeat remains visible but non-blocking.</p></div>
           <div class="card"><h4>Request correlation</h4><p>A valid inbound <code>X-Request-ID</code> is propagated; otherwise the API creates one. Completion logs and response headers carry the same identifier.</p></div>
-          <div class="card"><h4>Prometheus</h4><p>Metrics cover request totals/failures/latency/in-flight work, model calls, degraded searches, queue status, and compatible index coverage.</p></div>
-          <div class="card"><h4>OpenTelemetry</h4><p>Optional OTLP HTTP tracing instruments FastAPI when enabled. Health and metrics URLs are excluded, and request/response headers are not captured.</p></div>
+          <div class="card"><h4>Request logs</h4><p>Structured request logs retain request IDs, status codes, and durations without requiring a separate monitoring service.</p></div>
         </div>
         <h3>Recommended alerts</h3>
         <ul>
@@ -625,7 +622,7 @@ PYTHONPATH=backend python -m scripts.benchmark_search \
               <tr><td>Durable execution</td><td><code>backend/app/jobs/queue.py</code>, <code>backend/app/jobs/worker.py</code></td></tr>
               <tr><td>Exact matching/evaluation</td><td><code>backend/app/similarity/normalization.py</code>, <code>backend/app/similarity/duplicate_detection.py</code>, <code>backend/app/similarity/evaluation.py</code></td></tr>
               <tr><td>Schema and migrations</td><td><code>backend/app/models/models.py</code>, <code>backend/alembic/versions/20260805_0007…0011</code></td></tr>
-              <tr><td>Operations</td><td><code>backend/app/services/readiness.py</code>, <code>backend/app/observability/</code>, <code>backend/app/ai/retrieval/benchmark.py</code>, <code>backend/scripts/benchmark_search.py</code>, <code>deploy/</code>, <code>.github/workflows/ci.yml</code></td></tr>
+              <tr><td>Operations</td><td><code>backend/app/services/readiness.py</code>, <code>backend/app/observability/</code>, <code>backend/app/ai/retrieval/benchmark.py</code>, <code>backend/scripts/benchmark_search.py</code></td></tr>
             </tbody>
           </table>
         </div>
@@ -641,7 +638,7 @@ PYTHONPATH=backend python -m scripts.benchmark_search \
           <li><strong>Infrastructure examples need site values:</strong> replace example image digests, ingress host, TLS/storage classes, resource sizes, GPU scheduling, external backup storage, and secret integration.</li>
           <li><strong>Benchmark acceptance is environment-specific:</strong> execute the production-shaped 100,000-record test on target PostgreSQL/storage/hardware and record p50/p95/p99, plan, cache state, filter mix, and corpus snapshot.</li>
         </ul>
-        <div class="callout"><strong>Operational principle:</strong> Ollama is optional to core continuity. PostgreSQL and the correct schema head are required. When AI is impaired, the service should say so explicitly, preserve domain writes, and continue with PostgreSQL lexical retrieval.</div>
+        <div class="callout"><strong>Operational principle:</strong> lexical fallback remains an explicit request-level continuity path, but the application does not report ready while Ollama, required models, schema, PostgreSQL, or the dead-letter queue is unhealthy.</div>
       </section>
 
     </main>
@@ -653,7 +650,7 @@ PYTHONPATH=backend python -m scripts.benchmark_search \
         <div class="uml-frame">
           <svg class="uml-component-diagram" viewBox="0 0 1400 1090" role="img" aria-labelledby="uml-title uml-description">
             <title id="uml-title">Full NAZ Order Papers system UML component diagram</title>
-            <desc id="uml-description">Parliamentary users access a Next.js frontend through TLS. The same-origin BFF calls the FastAPI API, which uses existing authentication, authorization, domain services, AI orchestration, document processing, durable workers, PostgreSQL, Ollama, ClamAV, SMTP, observability, migrations, backups, CI/CD, and production deployment controls.</desc>
+            <desc id="uml-description">Parliamentary users access a Next.js frontend. The same-origin BFF calls the FastAPI API, which uses authentication, authorization, domain services, hybrid retrieval, durable workers, PostgreSQL, bridge-scoped Ollama, strict readiness, request logs, and migrations.</desc>
             <defs>
               <marker id="uml-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
                 <path d="M 0 0 L 10 5 L 0 10 z" fill="#476253"/>
@@ -716,7 +713,7 @@ PYTHONPATH=backend python -m scripts.benchmark_search \
             <text class="connector-label" x="590" y="365">permissions</text>
             <text class="connector-label" x="368" y="727">claim/complete</text>
             <text class="connector-label" x="700" y="727">embed/chat</text>
-            <text class="connector-label" x="910" y="824">notification</text>
+            <text class="connector-label" x="910" y="824">local model calls</text>
             <text class="connector-label" x="1035" y="662">scan stream</text>
             <text class="connector-label" x="135" y="855">schema</text>
             <text class="connector-label" x="360" y="855">encrypted WAL</text>
@@ -774,7 +771,7 @@ PYTHONPATH=backend python -m scripts.benchmark_search \
               <rect class="component" x="1150" y="335" width="190" height="80"/>
               <text class="component-subtitle" x="1245" y="358">«component»</text>
               <text class="component-title" x="1245" y="381">Health endpoints</text>
-              <text class="component-subtitle" x="1245" y="401">live, ready, metrics</text>
+              <text class="component-subtitle" x="1245" y="401">live + strict AI/data readiness</text>
             </g>
             <g filter="url(#uml-shadow)">
               <rect class="component" x="285" y="480" width="230" height="70"/>
@@ -815,8 +812,8 @@ PYTHONPATH=backend python -m scripts.benchmark_search \
               <text class="component-subtitle" x="535" y="713">«component»</text>
               <text class="component-title" x="535" y="738">Durable worker</text>
               <text class="component-subtitle" x="535" y="762">embedding + explanation</text>
-              <text class="component-subtitle" x="535" y="782">notification + archival</text>
-              <text class="component-subtitle" x="535" y="802">lease, retry, dead-letter</text>
+              <text class="component-subtitle" x="535" y="782">chunk indexing + archival</text>
+              <text class="component-subtitle" x="535" y="802">lease, retry, dead-letter recovery</text>
             </g>
             <g filter="url(#uml-shadow)">
               <rect class="component ai" x="740" y="690" width="220" height="125"/>
@@ -824,21 +821,14 @@ PYTHONPATH=backend python -m scripts.benchmark_search \
               <text class="component-title" x="850" y="738">Ollama</text>
               <text class="component-subtitle" x="850" y="762">/api/embed</text>
               <text class="component-subtitle" x="850" y="782">/api/chat structured JSON</text>
-              <text class="component-subtitle" x="850" y="802">approved local model digests</text>
+              <text class="component-subtitle" x="850" y="802">Docker bridge 172.17.0.1:11434</text>
             </g>
             <g filter="url(#uml-shadow)">
               <rect class="component external" x="1010" y="690" width="150" height="125"/>
               <text class="component-subtitle" x="1085" y="713">«service»</text>
-              <text class="component-title" x="1085" y="738">ClamAV</text>
-              <text class="component-subtitle" x="1085" y="762">malware scan</text>
+              <text class="component-title" x="1085" y="738">Document validation</text>
+              <text class="component-subtitle" x="1085" y="762">size, type, structure</text>
               <text class="component-subtitle" x="1085" y="782">bounded stream</text>
-            </g>
-            <g filter="url(#uml-shadow)">
-              <rect class="component external" x="1210" y="690" width="150" height="125"/>
-              <text class="component-subtitle" x="1285" y="713">«external service»</text>
-              <text class="component-title" x="1285" y="738">SMTP provider</text>
-              <text class="component-subtitle" x="1285" y="762">escaped HTML mail</text>
-              <text class="component-subtitle" x="1285" y="782">retryable delivery</text>
             </g>
 
             <!-- Operations components -->
@@ -850,43 +840,17 @@ PYTHONPATH=backend python -m scripts.benchmark_search \
               <text class="component-subtitle" x="135" y="1010">schema authority</text>
             </g>
             <g filter="url(#uml-shadow)">
-              <rect class="component ops" x="260" y="920" width="200" height="105"/>
-              <text class="component-subtitle" x="360" y="944">«recovery service»</text>
-              <text class="component-title" x="360" y="970">Encrypted backup and WAL archive</text>
-              <text class="component-subtitle" x="360" y="992">15-minute RPO</text>
-              <text class="component-subtitle" x="360" y="1010">four-hour RTO</text>
-            </g>
-            <g filter="url(#uml-shadow)">
               <rect class="component external" x="485" y="920" width="200" height="105"/>
               <text class="component-subtitle" x="585" y="944">«monitoring service»</text>
-              <text class="component-title" x="585" y="970">Prometheus</text>
-              <text class="component-subtitle" x="585" y="992">latency, queue, AI, coverage</text>
-            </g>
-            <g filter="url(#uml-shadow)">
-              <rect class="component external" x="710" y="920" width="200" height="105"/>
-              <text class="component-subtitle" x="810" y="944">«telemetry service»</text>
-              <text class="component-title" x="810" y="970">OpenTelemetry</text>
-              <text class="component-subtitle" x="810" y="992">optional redacted OTLP traces</text>
-            </g>
-            <g filter="url(#uml-shadow)">
-              <rect class="component ops" x="935" y="920" width="200" height="105"/>
-              <text class="component-subtitle" x="1035" y="944">«delivery pipeline»</text>
-              <text class="component-title" x="1035" y="970">CI/CD and image registry</text>
-              <text class="component-subtitle" x="1035" y="992">tests, scans, SBOM, signing</text>
-            </g>
-            <g filter="url(#uml-shadow)">
-              <rect class="component ops" x="1160" y="920" width="200" height="105"/>
-              <text class="component-subtitle" x="1260" y="944">«deployment»</text>
-              <text class="component-title" x="1260" y="970">Production runtime</text>
-              <text class="component-subtitle" x="1260" y="992">Kubernetes or Compose</text>
-              <text class="component-subtitle" x="1260" y="1010">API + worker replicas</text>
+              <text class="component-title" x="585" y="970">Structured request logs</text>
+              <text class="component-subtitle" x="585" y="992">request ID, status, duration</text>
             </g>
           </svg>
         </div>
         <div class="grid three">
-          <div class="card"><h4>Required for core readiness</h4><p>FastAPI, PostgreSQL connectivity, and exact Alembic head. Authentication is used as implemented but is a separate residual risk.</p></div>
-          <div class="card"><h4>Degradable dependencies</h4><p>Ollama failure keeps lexical search and domain writes available. SMTP retries through durable jobs; worker state is reported separately.</p></div>
-          <div class="card"><h4>Security boundaries</h4><p>TLS ingress, existing identity validation, permission and visibility enforcement, bounded uploads, ClamAV, redacted telemetry, network policy, non-root containers, and digest-pinned images.</p></div>
+          <div class="card"><h4>Required for readiness</h4><p>FastAPI, PostgreSQL, exact Alembic head, Ollama connectivity, both configured models, and zero dead-letter jobs.</p></div>
+          <div class="card"><h4>Explicit fallback</h4><p>A request can still return lexical results with <code>degraded: true</code>, but readiness remains 503 until semantic service health is restored.</p></div>
+          <div class="card"><h4>Security boundaries</h4><p>Existing identity validation, permission and visibility enforcement, bounded uploads, file type validation, bridge-scoped Ollama, and redacted request logs protect the prototype boundary.</p></div>
         </div>
         <details>
           <summary>PlantUML source — full-system component architecture</summary>
@@ -917,14 +881,10 @@ package "FastAPI API" {
 database "PostgreSQL + pgvector" as DB
 component "Durable worker" as Worker
 component "Ollama" as Ollama
-component "ClamAV" as ClamAV
-component "SMTP provider" as SMTP
-component "Prometheus" as Prometheus
-component "OpenTelemetry" as OTel
+component "Document validation" as UploadValidation
+component "Structured request logs" as RequestLogs
 component "Alembic migrator" as Alembic
-component "Encrypted backup and WAL archive" as Backup
-component "CI/CD and image registry" as CICD
-component "Production runtime\nKubernetes or Compose" as Runtime
+component "Strict readiness\nschema + Ollama models + dead letters" as Ready
 
 Staff --> Web
 Web --> Ingress : HTTPS
@@ -936,28 +896,24 @@ Access --> AI
 Access --> Documents
 Domain --> DB : transactional SQL
 AI --> DB : FTS, vectors, jobs, cache
-Documents --> ClamAV : bounded scan stream
+Documents --> UploadValidation : size, type, structure
 Domain --> Producer
 AI --> Producer
 Producer --> DB : outbox + job in same transaction
 Worker --> DB : claim / complete / retry
 Worker --> Ollama : /api/embed + /api/chat
-Worker --> SMTP : escaped notifications
+note right of Ollama
+  Docker bridge only
+  172.17.0.1:11434
+end note
 Routes --> Audit
 Worker --> Audit
 Audit --> DB
-Prometheus ..> Routes : scrape /metrics
-Prometheus ..> Worker : queue and heartbeat
-OTel ..> Routes : redacted traces
+Routes --> RequestLogs : request ID, status, duration
+Ready --> DB : schema + queue state
+Ready --> Ollama : /api/tags + required models
 Alembic ..> DB : advisory-locked migrations
-Backup ..> DB : encrypted base backup + WAL
-CICD --> Runtime : tested, scanned, signed images
-Runtime ..> Web
-Runtime ..> Routes
-Runtime ..> Worker
-Operator --> Runtime
 Operator --> Alembic
-Operator --> Prometheus
 @enduml</pre>
         </details>
         <div class="callout info"><strong>Component ownership:</strong> PostgreSQL is the state and recovery authority; FastAPI owns domain rules and secured APIs; workers own durable side effects; Ollama only produces embeddings and advisory structured explanations; clerks retain every procedural decision.</div>

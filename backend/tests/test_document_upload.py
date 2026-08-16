@@ -16,7 +16,6 @@ from app.services.document_parser import (
     bounded_upload_file,
     parse_uploaded_document,
 )
-from app.services.malware import MalwareDetected, get_malware_scanner
 
 
 def _make_docx_bytes(lines: list[str]) -> bytes:
@@ -315,30 +314,6 @@ class TestUploadEndpoint:
 
         assert response.status_code == 422
         assert "too large" in response.json()["detail"].casefold()
-
-    def test_malware_detection_rejects_upload(self, client, db_session):
-        class RejectingScanner:
-            def scan(self, _path):
-                raise MalwareDetected("test signature detected")
-
-        user = _make_user(db_session)
-        from app.main import app
-
-        app.dependency_overrides[get_malware_scanner] = lambda: RejectingScanner()
-        response = client.post(
-            "/submissions/upload",
-            files={
-                "file": (
-                    "question.txt",
-                    BytesIO(b"Subject\n\nA safe-looking body"),
-                    "text/plain",
-                )
-            },
-            headers=_auth_headers(db_session, user),
-        )
-
-        assert response.status_code == 422
-        assert "malware" in response.json()["detail"].casefold()
 
     def test_parser_timeout_removes_temporary_file(
         self,

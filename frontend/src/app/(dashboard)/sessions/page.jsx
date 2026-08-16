@@ -30,13 +30,13 @@ export default function SessionsPage() {
         {
             key: "actions",
             header: "Actions",
-            render: () => (<div className="sessions-page__actions">
+            render: (row) => (<div className="sessions-page__actions">
           <Button variant="secondary" size="sm">
             Edit
           </Button>
-          <Button variant="ghost" size="sm">
+          {row.status === "Active" ? <Button variant="ghost" size="sm">
             Close
-          </Button>
+          </Button> : null}
         </div>),
         },
     ];
@@ -46,8 +46,8 @@ export default function SessionsPage() {
         <EmptyState title="Access denied" description="You do not have permission to manage parliamentary sessions."/>
       </div>);
     }
-    return (<div>
-      <PageHeader title="Parliamentary Sessions" description="Maintain the official session register used for submissions and historical search filters." actions={<Button onClick={() => setIsModalOpen(true)}>Add Session</Button>}/>
+    return (<div className="sessions-page">
+      <PageHeader title="Parliamentary Sessions" actions={<Button onClick={() => setIsModalOpen(true)}>Add Session</Button>}/>
 
       <Table columns={columns} data={sessions} rowKey={(row) => row.id} emptyMessage="No sessions have been configured."/>
 

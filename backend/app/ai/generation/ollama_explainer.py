@@ -15,7 +15,6 @@ from app.ai.generation.prompts import (
 from app.ai.interfaces import ExplanationProvider
 from app.ai.schemas import AIExplanation
 from app.config import Settings
-from app.observability.metrics import AI_MODEL_CALLS
 
 logger = logging.getLogger(__name__)
 
@@ -78,20 +77,9 @@ class OllamaExplanationProvider(ExplanationProvider):
                 "num_predict": self._settings.ai_explanation_max_tokens,
             },
         }
-        try:
-            response = self._client.post("/api/chat", json=payload)
-            response.raise_for_status()
-            content = response.json().get("message", {}).get("content", "")
-        except Exception:
-            AI_MODEL_CALLS.labels(
-                operation="grounded_explanation",
-                outcome="failure",
-            ).inc()
-            raise
-        AI_MODEL_CALLS.labels(
-            operation="grounded_explanation",
-            outcome="success",
-        ).inc()
+        response = self._client.post("/api/chat", json=payload)
+        response.raise_for_status()
+        content = response.json().get("message", {}).get("content", "")
         return content
 
     def _validated_explanation(

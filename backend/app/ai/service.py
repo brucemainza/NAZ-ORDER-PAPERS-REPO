@@ -18,7 +18,6 @@ from app.ai.schemas import (
 )
 from app.config import Settings
 from app.models import AIInferenceRun
-from app.observability.metrics import AI_DEGRADED_SEARCHES
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +96,6 @@ class AISimilarityService:
             retrieval_mode = "lexical"
             degraded = True
             warnings.append("Semantic retrieval is temporarily unavailable.")
-            AI_DEGRADED_SEARCHES.inc()
 
         # Fuse and truncate.
         ranked_lists = [lexical_matches]

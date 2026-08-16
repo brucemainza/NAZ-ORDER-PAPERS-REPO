@@ -21,7 +21,6 @@ from app.config import get_settings
 from app.deps import add_audit_log, get_current_user, request_ip, require_permission
 from app.jobs.queue import enqueue_outbox_job
 from app.models import ParliamentaryRecord, ParliamentarySession, User
-from app.notifications.tasks import enqueue_status_change_notification
 from app.schemas.search import SearchResultOut
 from app.schemas.similarity import (
     SimilarityCheckRequest,
@@ -57,12 +56,6 @@ from app.services.idempotency import (
     cached_idempotency_response,
     claim_idempotency_key,
     complete_idempotency_key,
-)
-from app.services.malware import (
-    MalwareDetected,
-    MalwareScanner,
-    MalwareScannerUnavailable,
-    get_malware_scanner,
 )
 from app.services.similarity import find_previously_addressed_candidates
 from app.services.submission_status import (
@@ -223,7 +216,6 @@ def upload_submission_document(
     file: UploadFile = File(..., description="PDF, DOCX or TXT parliamentary document"),
     item_type: str | None = Form(default=None, pattern="^(Question|Motion)?$"),
     user: User = Depends(get_current_user),
-    malware_scanner: MalwareScanner = Depends(get_malware_scanner),
 ) -> DocumentUploadResponse:
     """Extract submission fields from an uploaded document.
 
@@ -249,7 +241,6 @@ def upload_submission_document(
             file.file,
             temp_directory=settings.upload_temp_directory,
         ) as path:
-            malware_scanner.scan(path)
             result = parse_document_safely(
                 path,
                 filename=file.filename,
@@ -258,16 +249,6 @@ def upload_submission_document(
                 timeout_seconds=settings.upload_parse_timeout_seconds,
                 memory_mb=settings.upload_parse_memory_mb,
             )
-    except MalwareDetected as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Uploaded document failed malware scanning",
-        ) from exc
-    except MalwareScannerUnavailable as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Document scanning is temporarily unavailable",
-        ) from exc
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -506,14 +487,13 @@ def resubmit_draft(
     if not user.has_permission(required_permission):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
-    old_status = record.status
     try:
         transition_submission(record, SubmissionStatus.SUBMITTED)
         transition_submission(record, SubmissionStatus.UNDER_REVIEW)
     except InvalidStatusTransition as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
 
-    audit_entry = add_audit_log(
+    add_audit_log(
         db,
         user_id=user.id,
         action="record_resubmission",
@@ -521,17 +501,6 @@ def resubmit_draft(
         entity_id=str(record.id),
         details=record.subject,
         ip_address=request_ip(request),
-    )
-    db.flush()
-    enqueue_status_change_notification(
-        db,
-        event_key=f"record-resubmission:{audit_entry.id}",
-        recipient=record.submitter.email if record.submitter else None,
-        record_id=record.id,
-        item_type=record.item_type,
-        subject=record.subject,
-        old_status=old_status,
-        new_status=record.status,
     )
     db.commit()
     db.refresh(record)

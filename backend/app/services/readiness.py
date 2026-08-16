@@ -14,7 +14,6 @@ from app.config import Settings, get_settings
 from app.database import engine
 from app.jobs.queue import queue_snapshot
 from app.models import WorkerHeartbeat
-from app.observability.metrics import update_queue_metrics
 
 
 def expected_schema_revision() -> str:
@@ -113,7 +112,6 @@ class ReadinessProbe:
             with Session(self._engine) as db:
                 last_seen = db.scalar(func.max(WorkerHeartbeat.last_seen_at))
                 queue = queue_snapshot(db)
-            update_queue_metrics(queue)
         except Exception:
             return (
                 {"status": "unknown", "required": False, "last_seen_at": None},

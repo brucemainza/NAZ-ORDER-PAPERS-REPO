@@ -16,7 +16,7 @@ export function RecentActivity({ submissions, sessions = [] }) {
         {
             key: "type",
             header: "Item Type",
-            render: (row) => <Badge variant={row.type === "Question" ? "question" : "motion"}>{row.type}</Badge>,
+            render: (row) => row.type,
         },
         {
             key: "session",

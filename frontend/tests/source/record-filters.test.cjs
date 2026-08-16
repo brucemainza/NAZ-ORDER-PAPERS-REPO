@@ -19,4 +19,9 @@ test("search UI exposes and forwards date, member, and ministry filters", () => 
     assert.match(searchBar, new RegExp(filter, "i"));
     assert.match(searchPage, new RegExp(`params\\.append\\(\"${filter}\"`));
   }
+
+  assert.match(searchBar, /aria-controls="submission-filters"/);
+  assert.match(searchBar, /Apply filters/);
+  assert.match(searchBar, /Reset filters/);
+  assert.doesNotMatch(searchBar, /debounceTimerRef/);
 });

@@ -43,7 +43,11 @@ def test_hybrid_is_the_default_search_mode():
 
 
 def test_legacy_in_process_bm25_ranker_is_removed():
-    assert importlib.util.find_spec("app.retrieval.bm25") is None
+    try:
+        spec = importlib.util.find_spec("app.retrieval.bm25")
+    except ModuleNotFoundError:
+        spec = None
+    assert spec is None
 
 
 def test_differently_ordered_terms_retrieve_the_same_record(db_session):

@@ -2,7 +2,6 @@ from datetime import date, datetime, timedelta, timezone
 
 from app.lib.auth import create_access_token
 from app.models import (
-    BackgroundJob,
     ParliamentaryRecord,
     ParliamentarySession,
     Permission,
@@ -173,4 +172,3 @@ def test_scheduling_idempotency_replays_and_rejects_changed_date(client, db_sess
     assert first.status_code == replay.status_code == 200
     assert first.json() == replay.json()
     assert conflict.status_code == 409
-    assert db_session.query(BackgroundJob).filter_by(job_type="notification").count() == 1

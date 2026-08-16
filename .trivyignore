@@ -1,8 +1,0 @@
-# Authentication is an explicitly frozen implementation boundary for this work.
-# These exceptions must be removed by the authentication-hardening project.
-PYSEC-2025-183
-PYSEC-2026-120
-PYSEC-2026-175
-PYSEC-2026-177
-PYSEC-2026-178
-PYSEC-2026-179

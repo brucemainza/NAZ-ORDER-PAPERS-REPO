@@ -7,7 +7,6 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.deps import add_audit_log, request_ip, require_permission
 from app.models import ParliamentaryRecord, User
-from app.notifications.tasks import enqueue_status_change_notification
 from app.schemas.submission import SubmissionRecordOut, SubmissionSchedule
 from app.services.idempotency import (
     IdempotencyConflict,
@@ -84,7 +83,6 @@ def schedule_submission(
             detail="Sitting date must fall within the parliamentary session",
         )
 
-    old_status = record.status
     try:
         transition_submission(record, SubmissionStatus.SCHEDULED)
     except InvalidStatusTransition as error:
@@ -108,16 +106,6 @@ def schedule_submission(
         )
     except DatabaseConflict as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
-    enqueue_status_change_notification(
-        db,
-        event_key=f"schedule:{record.id}:{schedule.sitting_date.isoformat()}",
-        recipient=record.submitter.email if record.submitter else None,
-        record_id=record.id,
-        item_type=record.item_type,
-        subject=record.subject,
-        old_status=old_status,
-        new_status=record.status,
-    )
     response = SubmissionRecordOut.model_validate(record)
     complete_idempotency_key(
         idempotency,

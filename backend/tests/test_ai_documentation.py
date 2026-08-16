@@ -86,8 +86,6 @@ def test_ai_documentation_describes_current_durable_architecture():
         "cosine_similarity",
         "human_review_required",
         "20260805_0011",
-        "15-minute RPO",
-        "four-hour RTO",
     ):
         assert required in html
 
@@ -136,12 +134,8 @@ def test_ai_documentation_ends_with_full_system_uml_component_diagram():
         "Durable worker",
         "PostgreSQL + pgvector",
         "Ollama",
-        "ClamAV",
-        "SMTP provider",
-        "Prometheus",
-        "OpenTelemetry",
+        "Document validation",
         "Alembic migrator",
-        "Encrypted backup and WAL archive",
-        "CI/CD and image registry",
+        "Structured request logs",
     ):
         assert component in html

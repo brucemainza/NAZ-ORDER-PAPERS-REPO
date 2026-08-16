@@ -17,7 +17,7 @@ services:
       retries: 5
 
   migrate:
-    build: ./backend
+    image: naz-order-papers-backend:latest
     command: ["python", "-m", "scripts.migrate"]
     environment:
       - DATABASE_URL=postgresql+psycopg://naz_user:naz_password@db:5432/naz_order_papers
@@ -28,6 +28,7 @@ services:
 
   backend:
     build: ./backend
+    image: naz-order-papers-backend:latest
     container_name: naz_order_papers_backend
     ports:
       - "8080:8000"
@@ -57,7 +58,7 @@ services:
         condition: service_completed_successfully
 
   worker:
-    build: ./backend
+    image: naz-order-papers-backend:latest
     command: ["python", "-m", "app.jobs.worker"]
     environment:
       - DATABASE_URL=postgresql+psycopg://naz_user:naz_password@db:5432/naz_order_papers
@@ -70,6 +71,7 @@ services:
 
   frontend:
     build: ./frontend
+    image: naz-order-papers-frontend:latest
     container_name: naz_order_papers_frontend
     ports:
       - "3000:3000"
@@ -78,29 +80,16 @@ services:
       - NEXT_PUBLIC_API_URL=
       - NEXT_PUBLIC_BACKEND_URL=http://localhost:8080
       - BACKEND_INTERNAL_URL=http://backend:8000
-      - NODE_ENV=development
+      - NODE_ENV=production
+      - SECURE_COOKIES=false
     volumes:
-      - ./frontend:/app
+      - ./frontend/public:/app/public:ro
       - /app/node_modules
-      - /app/.next
     depends_on:
       db:
         condition: service_healthy
       backend:
         condition: service_healthy
-    command: npm run dev
-
-  portainer:
-    image: portainer/portainer-ce:latest
-    container_name: naz_portainer
-    ports:
-      - "9001:8000"
-      - "9000:9000"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - portainer_data:/data
-    restart: always
 
 volumes:
   pgdata:
-  portainer_data:

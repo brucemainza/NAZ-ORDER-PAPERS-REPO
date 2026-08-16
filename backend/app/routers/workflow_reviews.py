@@ -7,7 +7,6 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.deps import add_audit_log, get_current_user, request_ip
 from app.models import ParliamentaryRecord, User, WorkflowDecision
-from app.notifications.tasks import enqueue_status_change_notification
 from app.schemas.review import WorkflowReviewCreate, WorkflowReviewOut
 from app.services.idempotency import (
     IdempotencyConflict,
@@ -83,7 +82,6 @@ def review_submission(
     if not record:
         db.rollback()
         raise HTTPException(status_code=404, detail="Record not found")
-    old_status = record.status
     try:
         transition_submission(record, next_status)
     except InvalidStatusTransition as error:
@@ -125,16 +123,6 @@ def review_submission(
         reviewer_name=reviewer.name,
         notes=decision.notes,
         created_at=decision.created_at,
-    )
-    enqueue_status_change_notification(
-        db,
-        event_key=f"workflow-decision:{decision.id}",
-        recipient=record.submitter.email if record.submitter else None,
-        record_id=record.id,
-        item_type=record.item_type,
-        subject=record.subject,
-        old_status=old_status,
-        new_status=record.status,
     )
     complete_idempotency_key(
         idempotency,

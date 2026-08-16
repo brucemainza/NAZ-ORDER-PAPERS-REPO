@@ -2,7 +2,6 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Skip apt-get entirely — use precompiled wheels
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 

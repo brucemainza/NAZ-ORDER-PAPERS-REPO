@@ -30,8 +30,7 @@ retrieval platform for the National Assembly of Zambia.
 - Permission-controlled archive list/detail/search.
 - PostgreSQL weighted full-text and versioned chunk-vector hybrid search with
   relevance context, structured filters, and lexical-only degradation.
-- Durable PostgreSQL outbox/worker processing for indexing, explanations,
-  notifications, and archival work.
+- Durable PostgreSQL worker processing for indexing and explanations.
 - Grounded local-Ollama explanations with evidence validation and mandatory human
   review.
 - Reports, audit trail, and audit CSV export.
@@ -64,7 +63,6 @@ Services:
 | Swagger UI | http://localhost:8080/docs |
 | ReDoc | http://localhost:8080/redoc |
 | PostgreSQL | localhost:5433 |
-| Portainer | http://localhost:9000 |
 
 ### Local Ollama connectivity
 

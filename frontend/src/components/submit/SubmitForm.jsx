@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { UploadCloud } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/Button";
@@ -132,48 +133,8 @@ export function SubmitForm({ sessions, itemTypes }) {
 
     return (
         <div className="submit-form">
-            <div
-                className={`submit-form__upload ${dragActive ? "submit-form__upload--active" : ""}`}
-                onDragOver={onDragOver}
-                onDragLeave={onDragLeave}
-                onDrop={onDrop}
-                role="button"
-                tabIndex={0}
-                aria-label="Upload parliamentary document"
-                onClick={() => fileInputRef.current?.click()}
-                onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        fileInputRef.current?.click();
-                    }
-                }}
-            >
-                <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept={ALLOWED_UPLOAD_TYPES.join(",")}
-                    className="submit-form__upload-input"
-                    onChange={onFileInputChange}
-                    aria-hidden="true"
-                />
-                <div className="submit-form__upload-content">
-                    {isUploading ? (
-                        <>
-                            <Spinner />
-                            <span>Extracting document text...</span>
-                        </>
-                    ) : (
-                        <>
-                            <span className="submit-form__upload-title">Drag and drop a document</span>
-                            <span className="submit-form__upload-hint">
-                                or click to upload PDF, DOCX or TXT
-                            </span>
-                        </>
-                    )}
-                </div>
-            </div>
-
-            <div className="submit-form__grid">
+            <div className="submit-form__workspace">
+              <div className="submit-form__grid">
                 <fieldset className="submit-form__type">
                     <legend className="submit-form__legend">Item Type</legend>
                     <div className="submit-form__type-options">
@@ -245,13 +206,53 @@ export function SubmitForm({ sessions, itemTypes }) {
                         {...register("fullText")}
                     />
                 </div>
+              </div>
+
+              <div className="submit-form__upload-panel">
+                <p className="submit-form__legend">Supporting Document</p>
+                <div
+                    className={`submit-form__upload ${dragActive ? "submit-form__upload--active" : ""}`}
+                    onDragOver={onDragOver}
+                    onDragLeave={onDragLeave}
+                    onDrop={onDrop}
+                    role="button"
+                    tabIndex={0}
+                    aria-label="Upload parliamentary document"
+                    onClick={() => fileInputRef.current?.click()}
+                    onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            fileInputRef.current?.click();
+                        }
+                    }}
+                >
+                    <div className="submit-form__upload-content">
+                        {isUploading ? (
+                            <>
+                                <Spinner />
+                                <span>Extracting document text...</span>
+                            </>
+                        ) : (
+                            <>
+                                <UploadCloud className="submit-form__upload-icon" aria-hidden="true" />
+                                <span className="submit-form__upload-title">Click to upload PDF / DOCX</span>
+                                <span className="submit-form__upload-hint">or drag and drop official documents here</span>
+                                <span className="submit-form__upload-limit">Maximum size: 20MB</span>
+                            </>
+                        )}
+                    </div>
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept={ALLOWED_UPLOAD_TYPES.join(",")}
+                        className="submit-form__upload-input"
+                        onChange={onFileInputChange}
+                        aria-hidden="true"
+                    />
+                </div>
+              </div>
             </div>
 
-            <Toast
-                variant="info"
-                title="Similarity review will run automatically"
-                description="The submission will be checked against historical records before you land on the result review screen."
-            />
             {displayError ? <Toast variant="error" title="Submission failed" description={displayError} /> : null}
 
             <div className="submit-form__actions">

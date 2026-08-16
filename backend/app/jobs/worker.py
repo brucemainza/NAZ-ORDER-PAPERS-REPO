@@ -1,5 +1,4 @@
 import argparse
-import asyncio
 from hashlib import sha256
 import logging
 import socket
@@ -18,7 +17,6 @@ from app.ai.generation.ollama_explainer import OllamaExplanationProvider
 from app.ai.interfaces import EmbeddingProvider
 from app.database import SessionLocal
 from app.config import get_settings
-from app.email.factory import get_email_provider
 from app.models import (
     AIInferenceRun,
     BackgroundJob,
@@ -26,9 +24,6 @@ from app.models import (
     ParliamentaryRecord,
     WorkerHeartbeat,
 )
-from app.notifications.service import NotificationService, StatusChangeNotifier
-from app.jobs.queue import queue_snapshot
-from app.observability.metrics import update_queue_metrics
 from app.services.archiving import archive_ended_session_records
 from app.similarity.duplicate_detection import build_similarity_text
 
@@ -176,40 +171,15 @@ def _run_embedding_job(
     ).index_record(record)
 
 
-def _run_notification_job(
-    job: BackgroundJob,
-    notifier: StatusChangeNotifier,
-) -> None:
-    payload = job.payload
-    sent = asyncio.run(
-        notifier.notify_status_change(
-            recipient=payload["recipient"],
-            record_id=UUID(payload["record_id"]),
-            item_type=payload["item_type"],
-            subject=payload["subject"],
-            old_status=payload["old_status"],
-            new_status=payload["new_status"],
-        )
-    )
-    if not sent:
-        raise RuntimeError("notification provider did not accept the message")
-
-
 def run_job(
     db: Session,
     job: BackgroundJob,
     *,
     embedding_provider: EmbeddingProvider | None = None,
-    notifier: StatusChangeNotifier | None = None,
     explanation_provider=None,
 ) -> None:
     if job.job_type in {"embed_record", "reindex_record", "index_record_chunks"}:
         _run_embedding_job(db, job, embedding_provider or get_embedding_provider())
-    elif job.job_type == "notification":
-        _run_notification_job(
-            job,
-            notifier or NotificationService(get_email_provider()),
-        )
     elif job.job_type == "archive_records":
         archive_ended_session_records(db)
     elif job.job_type == "generate_explanation":
@@ -232,7 +202,6 @@ def process_claimed_job(
     job_id: UUID,
     *,
     embedding_provider: EmbeddingProvider | None = None,
-    notifier: StatusChangeNotifier | None = None,
     explanation_provider=None,
 ) -> bool:
     with SessionLocal() as db:
@@ -244,7 +213,6 @@ def process_claimed_job(
                 db,
                 job,
                 embedding_provider=embedding_provider,
-                notifier=notifier,
                 explanation_provider=explanation_provider,
             )
             complete_job(job)
@@ -274,8 +242,6 @@ def run_once(*, worker_id: str, limit: int = 10) -> int:
         db.commit()
     for job_id in ids:
         process_claimed_job(job_id)
-    with SessionLocal() as db:
-        update_queue_metrics(queue_snapshot(db))
     return len(ids)
 
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { AUTH_COOKIE_NAME, verifyAuthToken } from "@/lib/auth";
-const protectedPaths = ["/dashboard", "/submit", "/search", "/results", "/sessions", "/users", "/audit", "/reports"];
+const protectedPaths = ["/dashboard", "/submit", "/search", "/results", "/sessions", "/users", "/audit", "/reports", "/notifications"];
 export async function middleware(request) {
     var _a;
     const token = (_a = request.cookies.get(AUTH_COOKIE_NAME)) === null || _a === void 0 ? void 0 : _a.value;
@@ -27,5 +27,5 @@ export async function middleware(request) {
     return NextResponse.next();
 }
 export const config = {
-    matcher: ["/dashboard/:path*", "/submit/:path*", "/search/:path*", "/results/:path*", "/sessions/:path*", "/users/:path*", "/audit/:path*", "/reports/:path*", "/login"],
+    matcher: ["/dashboard/:path*", "/submit/:path*", "/search/:path*", "/results/:path*", "/sessions/:path*", "/users/:path*", "/audit/:path*", "/reports/:path*", "/notifications/:path*", "/login"],
 };
