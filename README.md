@@ -147,6 +147,12 @@ npm run dev
 When the frontend runs on the host instead of Docker, set
 `BACKEND_INTERNAL_URL=http://localhost:8080` in `frontend/.env.local`.
 
+## EC2 Deployment
+
+Use [the EC2 deployment runbook](docs/operations/ec2-deployment.md). It covers
+the production Compose file, Ollama provisioning, HTTPS exposure, migrations,
+release checks, and encrypted backups.
+
 ## Verification
 
 Backend:
