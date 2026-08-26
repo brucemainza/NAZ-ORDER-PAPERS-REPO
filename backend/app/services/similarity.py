@@ -1,81 +1,85 @@
-from uuid import UUID
+from dataclasses import dataclass
+from typing import Protocol
 
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.ai.dependencies import get_embedding_provider
+from app.ai.schemas import SimilaritySearchRequest
+from app.ai.service import AISimilarityService
+from app.config import get_settings
 from app.models import ParliamentaryRecord
-from app.retrieval.bm25 import RankedMatch, rank_records
+
+
+class CandidateRecord(Protocol):
+    id: object
+
+
+@dataclass
+class RankedMatch:
+    """Compatibility result used by the submission candidate workflow."""
+
+    record: CandidateRecord
+    score: float
+    matched_terms: list[str]
 
 
 def find_previously_addressed_candidates(
     db: Session,
     *,
     record: ParliamentaryRecord,
+    user,
     limit: int = 5,
 ) -> list[RankedMatch]:
-    historical_records = list(
-        db.execute(
-            select(ParliamentaryRecord)
-            .where(ParliamentaryRecord.id != record.id)
-            .where(ParliamentaryRecord.status != "Draft")
-            .order_by(ParliamentaryRecord.created_at.desc())
-        ).scalars().all()
+    """Find related historical records using hybrid lexical + semantic retrieval.
+
+    PostgreSQL full-text and compatible chunk-vector ranks are fused through
+    the AI service while this adapter preserves the existing router contract.
+    """
+    settings = get_settings()
+    embedding_provider = get_embedding_provider()
+    service = AISimilarityService(
+        db=db,
+        user=user,
+        settings=settings,
+        embedding_provider=embedding_provider,
     )
-    query_text = " ".join([record.subject, record.full_text, record.member, record.ministry or ""])
-    bm25_matches = rank_records(query_text, historical_records, limit)
 
-    vector_matches = _vector_matches(db, record.id, limit)
-    by_record_id: dict[UUID, RankedMatch] = {match.record.id: match for match in bm25_matches}
+    query_text = " ".join(
+        part
+        for part in [
+            record.subject,
+            record.full_text,
+            record.member,
+            record.ministry or "",
+        ]
+        if part
+    )
 
-    for vector_match in vector_matches:
-        existing = by_record_id.get(vector_match.record.id)
-        if existing:
-            existing.score = round(max(existing.score, vector_match.score), 2)
-            existing.matched_terms = sorted(set(existing.matched_terms + vector_match.matched_terms))
-        else:
-            by_record_id[vector_match.record.id] = vector_match
+    request = SimilaritySearchRequest(
+        query_text=query_text,
+        item_type=record.item_type,
+        exclude_ids=[record.id],
+    )
 
-    return sorted(by_record_id.values(), key=lambda match: match.score, reverse=True)[:limit]
-
-
-def _vector_matches(db: Session, record_id: UUID, limit: int) -> list[RankedMatch]:
-    try:
-        rows = db.execute(
-            text(
-                """
-                SELECT candidate.id, 100 - ((source.embedding <=> candidate.embedding) * 100) AS score
-                FROM parliamentary_records source
-                JOIN parliamentary_records candidate
-                  ON candidate.id != source.id
-                 AND candidate.embedding IS NOT NULL
-                 AND candidate.status != 'Draft'
-                WHERE source.id = :record_id
-                  AND source.embedding IS NOT NULL
-                ORDER BY source.embedding <=> candidate.embedding
-                LIMIT :limit
-                """
-            ),
-            {"record_id": record_id, "limit": limit},
-        ).all()
-    except Exception:
-        db.rollback()
-        return []
-
-    if not rows:
+    response = service.search(request)
+    record_ids = [match.record_id for match in response.results[:limit]]
+    if not record_ids:
         return []
 
     records = {
         item.id: item
         for item in db.execute(
-            select(ParliamentaryRecord).where(ParliamentaryRecord.id.in_([row.id for row in rows]))
+            select(ParliamentaryRecord).where(ParliamentaryRecord.id.in_(record_ids))
         ).scalars().all()
     }
+
     return [
         RankedMatch(
-            record=records[row.id],
-            score=round(max(0, min(100, float(row.score or 0))), 2),
-            matched_terms=["pgvector"],
+            record=records[match.record_id],
+            score=round(match.score * 100, 2),
+            matched_terms=match.metadata.get("matched_terms", ["hybrid"]),
         )
-        for row in rows
-        if row.id in records
+        for match in response.results[:limit]
+        if match.record_id in records
     ]

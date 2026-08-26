@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.models import ParliamentaryRecord, ParliamentarySession
+from app.config import get_settings
 from app.similarity.base import SimilarityBackend
 from app.similarity.duplicate_detection import build_similarity_text
 
@@ -52,6 +53,7 @@ class PreviouslyAddressedService(PreviouslyAddressedChecker):
     ) -> None:
         self._db = db
         self._similarity_backend = similarity_backend
+        self._threshold = get_settings().previously_addressed_threshold
 
     def check(
         self,
@@ -71,7 +73,7 @@ class PreviouslyAddressedService(PreviouslyAddressedChecker):
 
         backend_matches = self._similarity_backend.find_similar(
             build_similarity_text(subject, full_text),
-            threshold=PREVIOUSLY_ADDRESSED_THRESHOLD,
+            threshold=self._threshold,
             top_n=limit * SEARCH_OVERSAMPLE_FACTOR,
             statuses=ADDRESSED_STATUSES,
             item_type=item_type,

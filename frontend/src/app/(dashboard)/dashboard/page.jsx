@@ -51,7 +51,7 @@ export default function DashboardPage() {
     const activeSession = sessions.find((session) => session.status === "Active");
 
     return (<div>
-      <PageHeader title="Dashboard" description="Monitor activity across submissions, review queues and session coverage." actions={<Link href="/submit" className={buttonStyles({ variant: "primary" })}>
+      <PageHeader title="Dashboard" actions={<Link href="/submit" className={buttonStyles({ variant: "primary" })}>
             New Submission
           </Link>}/>
 
@@ -73,7 +73,7 @@ export default function DashboardPage() {
               {activeSession.name}
             </span>) : null}
           </div>
-          <RecentActivity submissions={records.slice(0, 6)} sessions={sessions}/>
+          <RecentActivity submissions={records.slice(0, 4)} sessions={sessions}/>
         </section>
       </>)}
     </div>);

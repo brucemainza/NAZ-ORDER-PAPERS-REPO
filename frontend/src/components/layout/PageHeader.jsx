@@ -15,18 +15,20 @@ function prettifySegment(segment) {
         .replace(/-/g, " ")
         .replace(/\b\w/g, (character) => character.toUpperCase());
 }
-export function PageHeader({ title, description, actions, }) {
+export function PageHeader({ title, description, actions, showBreadcrumbs = true, }) {
     const pathname = usePathname();
-    const segments = pathname.split("/").filter(Boolean);
+    const segments = pathname === "/submit"
+        ? ["submissions", "new"]
+        : pathname.split("/").filter(Boolean);
     return (<div className="page-header">
       <div>
-        <div className="page-header__breadcrumbs">
+        {showBreadcrumbs ? <div className="page-header__breadcrumbs">
           <span>Portal</span>
           {segments.map((segment) => (<span key={segment} className="page-header__breadcrumb">
               <ChevronRight className="page-header__breadcrumb-icon"/>
               <span>{prettifySegment(segment)}</span>
             </span>))}
-        </div>
+        </div> : null}
         <h1 className="page-header__title">{title}</h1>
         {description ? <p className="page-header__description">{description}</p> : null}
       </div>

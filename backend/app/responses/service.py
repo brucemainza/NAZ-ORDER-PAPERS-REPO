@@ -6,11 +6,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import ParliamentaryRecord, QuestionResponse
-from app.notifications.service import StatusChangeNotifier
-from app.notifications.tasks import (
-    TaskScheduler,
-    enqueue_status_change_notification,
-)
 from app.services.status_transition import StatusTransitioner
 from app.services.submission_status import SubmissionStatus
 
@@ -44,13 +39,9 @@ class ResponseRecordingService(ResponseRecorder):
         db: Session,
         *,
         status_transitioner: StatusTransitioner,
-        notifier: StatusChangeNotifier,
-        task_scheduler: TaskScheduler,
     ) -> None:
         self._db = db
         self._status_transitioner = status_transitioner
-        self._notifier = notifier
-        self._task_scheduler = task_scheduler
 
     def record_response(
         self,
@@ -60,7 +51,11 @@ class ResponseRecordingService(ResponseRecorder):
         response_date: date,
         recorded_by: UUID,
     ) -> QuestionResponse:
-        record = self._db.get(ParliamentaryRecord, record_id)
+        record = self._db.scalar(
+            select(ParliamentaryRecord)
+            .where(ParliamentaryRecord.id == record_id)
+            .with_for_update()
+        )
         if record is None:
             raise ResponseRecordNotFound("Question not found")
         if record.item_type != "Question":
@@ -88,7 +83,6 @@ class ResponseRecordingService(ResponseRecorder):
             recorded_by=recorded_by,
         )
         self._db.add(response)
-        old_status = record.status
         try:
             self._status_transitioner.transition(
                 record,
@@ -99,14 +93,4 @@ class ResponseRecordingService(ResponseRecorder):
             self._db.rollback()
             raise
 
-        enqueue_status_change_notification(
-            self._task_scheduler,
-            self._notifier,
-            recipient=record.submitter.email if record.submitter else None,
-            record_id=record.id,
-            item_type=record.item_type,
-            subject=record.subject,
-            old_status=old_status,
-            new_status=record.status,
-        )
         return response

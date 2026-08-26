@@ -1,4 +1,5 @@
 from collections.abc import Collection
+import logging
 from uuid import UUID
 
 from sqlalchemy import select
@@ -7,6 +8,9 @@ from sqlalchemy.orm import Session
 from app.models import ParliamentaryRecord
 from app.similarity.base import SimilarityBackend, SimilarityMatch
 from app.similarity.embeddings import EmbeddingGenerator
+
+
+logger = logging.getLogger(__name__)
 
 
 class PgVectorSimilarityBackend(SimilarityBackend):
@@ -37,7 +41,11 @@ class PgVectorSimilarityBackend(SimilarityBackend):
         if not text.strip():
             return []
 
-        query_embedding = self._embedding_generator.embed(text)
+        try:
+            query_embedding = self._embedding_generator.embed(text)
+        except RuntimeError as exc:
+            logger.warning("Semantic similarity unavailable: %s", exc)
+            return []
         if not any(query_embedding):
             return []
 

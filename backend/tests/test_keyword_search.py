@@ -85,7 +85,7 @@ def test_keyword_search_matches_subject_and_content_and_excludes_nonmatches(
 
     response = client.post(
         "/search",
-        json={"query_text": "SOLARGRID", "limit": 10},
+        json={"query_text": "SOLARGRID", "limit": 10, "mode": "keyword"},
         headers=auth_headers(db_session, user),
     )
 
@@ -105,7 +105,7 @@ def test_keyword_search_matches_subject_and_content_and_excludes_nonmatches(
 
     paged_response = client.post(
         "/search",
-        json={"query_text": "solargrid", "limit": 1, "offset": 1},
+        json={"query_text": "solargrid", "limit": 1, "offset": 1, "mode": "keyword"},
         headers=auth_headers(db_session, user),
     )
     assert paged_response.status_code == 200
@@ -219,6 +219,7 @@ def test_keyword_search_applies_all_browse_filters_before_bm25_ranking(
             "item_type": "Question",
             "limit": 15,
             "offset": 0,
+            "mode": "keyword",
         },
         headers=auth_headers(db_session, user),
     )

@@ -1,7 +1,7 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request
-from sqlalchemy import or_, select
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -18,6 +18,7 @@ def list_audit_logs(
     user_filter: str | None = Query(default=None),
     action: str | None = Query(default=None),
     entity_id: str | None = Query(default=None),
+    cursor: UUID | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=500),
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("view_audit")),
@@ -29,9 +30,29 @@ def list_audit_logs(
     if action:
         query = query.where(AuditLog.action.ilike(f"%{action}%"))
     if entity_id:
-        query = query.where(or_(AuditLog.entity_id == entity_id, AuditLog.details.ilike(f"%{entity_id}%")))
+        query = query.where(
+            or_(
+                AuditLog.entity_id == entity_id,
+                AuditLog.details.ilike(f"%{entity_id}%"),
+            )
+        )
+    if cursor is not None:
+        cursor_entry = db.get(AuditLog, cursor)
+        if cursor_entry is None:
+            raise HTTPException(status_code=404, detail="Audit cursor not found")
+        query = query.where(
+            or_(
+                AuditLog.created_at < cursor_entry.created_at,
+                and_(
+                    AuditLog.created_at == cursor_entry.created_at,
+                    AuditLog.id < cursor_entry.id,
+                ),
+            )
+        )
 
-    rows = db.execute(query.order_by(AuditLog.created_at.desc()).limit(limit)).all()
+    rows = db.execute(
+        query.order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).limit(limit)
+    ).all()
     add_audit_log(
         db,
         user_id=user.id,

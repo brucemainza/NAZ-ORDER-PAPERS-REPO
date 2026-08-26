@@ -1,7 +1,14 @@
 from datetime import date, datetime, timedelta, timezone
 
 from app.lib.auth import create_access_token
-from app.models import ParliamentaryRecord, ParliamentarySession, Permission, Role, User, UserSession
+from app.models import (
+    ParliamentaryRecord,
+    ParliamentarySession,
+    Permission,
+    Role,
+    User,
+    UserSession,
+)
 
 
 def create_record(db_session, status="Approved"):
@@ -117,3 +124,51 @@ def test_scheduling_requires_schedule_item_permission(client, db_session):
     db_session.refresh(record)
     assert record.status == "Approved"
     assert record.sitting_date is None
+
+
+def test_sitting_date_must_be_within_the_records_session(client, db_session):
+    record = create_record(db_session)
+    scheduler = create_user(db_session, has_schedule_permission=True)
+
+    response = client.post(
+        f"/submissions/{record.id}/schedule",
+        json={"sitting_date": "2028-01-01"},
+        headers=auth_headers(db_session, scheduler),
+    )
+
+    assert response.status_code == 422
+    db_session.refresh(record)
+    assert record.status == "Approved"
+    assert record.sitting_date is None
+
+
+def test_scheduling_idempotency_replays_and_rejects_changed_date(client, db_session):
+    record = create_record(db_session)
+    scheduler = create_user(db_session, has_schedule_permission=True)
+    scheduler.email = "idempotent.scheduler@parliament.gov.zm"
+    record.submitter = scheduler
+    db_session.commit()
+    headers = {
+        **auth_headers(db_session, scheduler),
+        "Idempotency-Key": "schedule-record-001",
+    }
+
+    first = client.post(
+        f"/submissions/{record.id}/schedule",
+        json={"sitting_date": "2026-10-02"},
+        headers=headers,
+    )
+    replay = client.post(
+        f"/submissions/{record.id}/schedule",
+        json={"sitting_date": "2026-10-02"},
+        headers=headers,
+    )
+    conflict = client.post(
+        f"/submissions/{record.id}/schedule",
+        json={"sitting_date": "2026-10-03"},
+        headers=headers,
+    )
+
+    assert first.status_code == replay.status_code == 200
+    assert first.json() == replay.json()
+    assert conflict.status_code == 409

@@ -518,7 +518,6 @@ Docker Compose starts:
 | PostgreSQL/pgvector | 5432 | 5433 | Persistent relational/vector data. |
 | FastAPI | 8000 | 8080 | Business API and OpenAPI docs. |
 | Next.js | 3000 | 3000 | Browser UI and BFF. |
-| Portainer | 9000/8000 | 9000/9001 | Local container administration. |
 
 Database schema and seed SQL run when a new PostgreSQL volume is initialized.
 FastAPI startup also applies idempotent compatibility DDL, seeds default RBAC, maps

@@ -28,10 +28,14 @@ class SimilarityMatchOut(BaseModel):
     member_name: str
     source_record: UUID
     source_id: UUID
+    ranking_score: float
+    cosine_similarity: float | None = None
+    lexical_rank: int | None = None
 
 
 class SimilarityCheckResponse(BaseModel):
     possible_duplicate: bool
     threshold: float
+    threshold_version: str = "2026-08-05-v1"
     matches: list[SimilarityMatchOut]
     previously_addressed: list[SimilarityMatchOut] = Field(default_factory=list)

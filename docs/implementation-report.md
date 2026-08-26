@@ -22,7 +22,7 @@ template, are stated in the specification rather than invented.
 
 Before this work, the repository already contained:
 
-- Docker Compose services for PostgreSQL/pgvector, FastAPI, Next.js, and Portainer.
+- Docker Compose services for PostgreSQL/pgvector, FastAPI, and Next.js.
 - Employee-ID/password authentication with bcrypt.
 - JWT creation, HTTP-only cookie handling, and database-backed session revocation.
 - Basic users, sessions, parliamentary records, search logs, review decisions, and

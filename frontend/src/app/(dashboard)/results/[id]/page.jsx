@@ -16,6 +16,7 @@ import { useAuthContext } from "@/context/AuthContext";
 import { hasPermission } from "@/lib/auth";
 import { normalizeSearchResult, normalizeSubmission } from "@/lib/records";
 import { formatDate, formatDateTime } from "@/lib/utils";
+import SimilarityEvidence from "@/components/ai/SimilarityEvidence";
 
 const statusVariantMap = {
     Draft: "info",
@@ -216,12 +217,19 @@ export default function ResultDetailPage() {
           <section className="result-detail__section">
             <div>
               <h2 className="result-detail__section-title">Previously Addressed Candidates</h2>
-              <p className="result-detail__section-description">Ranked records found by BM25 search and pgvector similarity where embeddings are available.</p>
+              <p className="result-detail__section-description">Ranked records found by PostgreSQL full-text search and compatible chunk-vector evidence.</p>
             </div>
             {matches.length === 0 ? (<EmptyState title="No similar records found" description="No historical candidates were returned for this record."/>) : (matches.map((result) => {
               const sessionName = sessions.find(s => s.id === result.match.sessionId)?.name || result.match.sessionId;
               return <ResultCard key={result.match.id} result={{...result, match: {...result.match, sessionName}}} expandable initiallyExpanded={result.rank === 1}/>
             }))}
+
+            {matches.length > 0 && submission && (
+              <SimilarityEvidence
+                queryText={`${submission.subject}\n${submission.fullText}`}
+                matches={matches}
+              />
+            )}
           </section>
 
           <section className="result-detail__section">
@@ -311,7 +319,7 @@ export default function ResultDetailPage() {
                   #{result.rank} {result.match.title}
                 </option>))}
               </select>
-              {selectedMatch ? <p className="result-detail__selected-score">Selected similarity: {selectedMatch.match.score}%</p> : null}
+              {selectedMatch ? <p className="result-detail__selected-score">Selected candidate ranking score: {selectedMatch.match.score}%</p> : null}
             </div>) : null}
 
             <div className="result-detail__panel-field">

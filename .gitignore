@@ -17,3 +17,5 @@ backend/**/*.py[cod]
 .venv/
 __pycache__/
 *.pyc
+.coverage
+coverage.xml

@@ -5,14 +5,16 @@ const test = require("node:test");
 
 const projectRoot = process.cwd();
 
-test("top bar defers the current date until after client hydration", () => {
+test("top bar exposes route, notifications, and account logout controls", () => {
   const topbar = readFileSync(
     join(projectRoot, "src/components/layout/Topbar.jsx"),
     "utf8",
   );
 
-  assert.match(topbar, /useEffect/);
-  assert.match(topbar, /useState/);
-  assert.match(topbar, /setCurrentDate/);
-  assert.match(topbar, /\{currentDate\}/);
+  assert.match(topbar, /usePathname/);
+  assert.match(topbar, /href="\/notifications"/);
+  assert.match(topbar, /aria-haspopup="menu"/);
+  assert.match(topbar, /await logout\(\)/);
+  assert.match(topbar, /router\.replace\("\/login"\)/);
+  assert.doesNotMatch(topbar, /topbar__role/);
 });

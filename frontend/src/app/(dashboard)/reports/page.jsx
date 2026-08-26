@@ -5,7 +5,6 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Spinner } from "@/components/ui/Spinner";
 import { Table } from "@/components/ui/Table";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { formatDate } from "@/lib/utils";
 
 export default function ReportsPage() {
     const [reports, setReports] = useState(null);
@@ -58,12 +57,6 @@ export default function ReportsPage() {
         { key: "pending", header: "Under Review", render: (row) => row.pending_review },
         { key: "duplicates", header: "Duplicates", render: (row) => row.duplicates },
     ];
-    const matchColumns = [
-        { key: "period", header: "Date", render: (row) => formatDate(row.period) },
-        { key: "reviews", header: "Reviews", render: (row) => row.total_reviews },
-        { key: "matches", header: "Duplicate / Similar", render: (row) => row.duplicate_or_similar },
-        { key: "rate", header: "Match Rate", render: (row) => `${row.match_rate}%` },
-    ];
     const activityColumns = [
         { key: "name", header: "Name", render: (row) => row.name },
         { key: "dept", header: "Department", render: (row) => row.department || "n/a" },
@@ -71,9 +64,16 @@ export default function ReportsPage() {
         { key: "pending", header: "Under Review", render: (row) => row.pending_review },
         { key: "duplicates", header: "Duplicates", render: (row) => row.duplicates },
     ];
+    const departmentColumns = [
+        { key: "name", header: "Department", render: (row) => row.name },
+        { key: "dept", header: "Office Group", render: (row) => row.department || "n/a" },
+        { key: "submissions", header: "Submissions", render: (row) => row.submissions },
+        { key: "pending", header: "Under Review", render: (row) => row.pending_review },
+        { key: "duplicates", header: "Duplicates", render: (row) => row.duplicates },
+    ];
 
     return (<div>
-      <PageHeader title="Reports" description="High-level operational reporting for parliamentary submissions, similarity outcomes and drafting activity."/>
+      <PageHeader title="Reports"/>
 
       <div className="reports-page__summary">
         <Card className="reports-page__summary-card"><p className="reports-page__summary-label">Total submissions</p><p className="reports-page__summary-value">{totals.submissions}</p></Card>
@@ -87,16 +87,12 @@ export default function ReportsPage() {
           <Table columns={sessionColumns} data={reports.submissions_by_session || []} rowKey={(row) => row.session_id}/>
         </section>
         <section className="reports-page__section">
-          <h2 className="reports-page__section-title">Similarity Match Rate Over Time</h2>
-          <Table columns={matchColumns} data={reports.similarity_match_rate || []} rowKey={(row) => row.period} emptyMessage="No review decisions have been recorded yet."/>
-        </section>
-        <section className="reports-page__section">
           <h2 className="reports-page__section-title">Member Activity</h2>
           <Table columns={activityColumns} data={reports.member_activity || []} rowKey={(row) => row.name}/>
         </section>
         <section className="reports-page__section">
           <h2 className="reports-page__section-title">Department Activity</h2>
-          <Table columns={activityColumns} data={reports.department_activity || []} rowKey={(row) => row.name}/>
+          <Table columns={departmentColumns} data={reports.department_activity || []} rowKey={(row) => row.name}/>
         </section>
       </div>
     </div>);

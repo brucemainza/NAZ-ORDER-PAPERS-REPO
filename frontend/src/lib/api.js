@@ -30,3 +30,26 @@ api.interceptors.response.use(
         return Promise.reject(error);
     }
 );
+
+export const searchAI = (queryText, options = {}) =>
+    api.post("/api/ai/search", {
+        query_text: queryText,
+        session_id: options.sessionId || null,
+        item_type: options.itemType || null,
+        status: options.status || null,
+    });
+
+export const explainAI = (queryText, recordIds) =>
+    api.post("/api/ai/explain", {
+        query_text: queryText,
+        record_ids: recordIds,
+    });
+
+export const createExplanationAI = (queryText, recordIds) =>
+    api.post("/api/ai/explanations", {
+        query_text: queryText,
+        record_ids: recordIds,
+    });
+
+export const getExplanationAI = (runId) =>
+    api.get(`/api/ai/explanations/${runId}`);

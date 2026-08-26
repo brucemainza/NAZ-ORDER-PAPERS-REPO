@@ -198,6 +198,9 @@ def test_similarity_check_api_returns_ranked_source_context(
         "member_name": "Hon. Second Member",
         "source_record": str(higher.id),
         "source_id": str(higher.id),
+        "ranking_score": 0.99,
+        "cosine_similarity": 0.99,
+        "lexical_rank": None,
     }
 
 
@@ -222,6 +225,7 @@ def test_similarity_check_api_returns_well_formed_zero_matches(
     assert response.json() == {
         "possible_duplicate": False,
         "threshold": 0.95,
+        "threshold_version": "2026-08-05-v1",
         "matches": [],
         "previously_addressed": [],
     }

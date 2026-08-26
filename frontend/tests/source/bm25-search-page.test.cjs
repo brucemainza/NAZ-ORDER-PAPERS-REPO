@@ -5,7 +5,7 @@ const test = require("node:test");
 
 const projectRoot = process.cwd();
 
-test("keyword searches use BM25 and expose matching content context", () => {
+test("ranked searches expose matching content context", () => {
   const searchPage = readFileSync(
     join(projectRoot, "src/app/(dashboard)/search/page.jsx"),
     "utf8",

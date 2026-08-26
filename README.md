@@ -10,6 +10,7 @@ retrieval platform for the National Assembly of Zambia.
 - [File-by-file application guide](docs/file-guide.md)
 - [TDD implementation and verification report](docs/implementation-report.md)
 - [Pre-implementation baseline](docs/implementation-baseline.md)
+- [Production AI implementation (offline HTML)](docs/ai-explanation.html)
 
 ## Implemented Capabilities
 
@@ -27,7 +28,11 @@ retrieval platform for the National Assembly of Zambia.
 - Structured Order Paper generation from scheduled items.
 - Automatic startup archival after session end.
 - Permission-controlled archive list/detail/search.
-- BM25 full-content keyword search with relevance context and multi-dimensional filters.
+- PostgreSQL weighted full-text and versioned chunk-vector hybrid search with
+  relevance context, structured filters, and lexical-only degradation.
+- Durable PostgreSQL worker processing for indexing and explanations.
+- Grounded local-Ollama explanations with evidence validation and mandatory human
+  review.
 - Reports, audit trail, and audit CSV export.
 - Plain CSS UI with desktop/mobile Playwright visual baselines.
 
@@ -36,6 +41,7 @@ retrieval platform for the National Assembly of Zambia.
 - Next.js 14 App Router, React 18, plain CSS.
 - FastAPI, Pydantic, SQLAlchemy 2, psycopg 3.
 - PostgreSQL 16 with pgvector.
+- Local Ollama embeddings and structured explanation generation.
 - bcrypt password hashing and HS256 JWTs.
 - Docker Compose.
 - pytest, Node test runner, and Playwright/Chrome.
@@ -57,7 +63,15 @@ Services:
 | Swagger UI | http://localhost:8080/docs |
 | ReDoc | http://localhost:8080/redoc |
 | PostgreSQL | localhost:5433 |
-| Portainer | http://localhost:9000 |
+
+### Local Ollama connectivity
+
+The application uses the standard Ollama API port `11434`. The backend and
+worker connect to `http://host.docker.internal:11434`. On Linux, Ollama must
+listen on an address reachable from Docker; bind it to the Docker bridge
+(`172.17.0.1:11434` on the default engine) or set
+`OLLAMA_HOST=0.0.0.0:11434` and restrict port `11434` to Docker bridge traffic
+with the host firewall. Do not expose the Ollama API to untrusted networks.
 
 ## Seeded Login
 
@@ -133,6 +147,12 @@ npm run dev
 When the frontend runs on the host instead of Docker, set
 `BACKEND_INTERNAL_URL=http://localhost:8080` in `frontend/.env.local`.
 
+## EC2 Deployment
+
+Use [the EC2 deployment runbook](docs/operations/ec2-deployment.md). It covers
+the production Compose file, Ollama provisioning, HTTPS exposure, migrations,
+release checks, and encrypted backups.
+
 ## Verification
 
 Backend:
@@ -189,6 +209,6 @@ Blank/legacy unsupported statuses are normalized to `Archived`.
 - Ended-session archival runs at API startup rather than in a continuous worker.
 - Users and Sessions management pages currently change local demo state; persistent
   CRUD APIs are not implemented.
-- Embedding generation is absent, so BM25 is the normal similarity path.
-- Production migration, backup, rate-limit, MFA, and password-reset facilities are
-  not included.
+- Authentication hardening remains explicitly out of scope and its frozen PyJWT
+  dependency is a documented residual go-live risk.
+- Rate limiting, MFA, and password-reset facilities are not included.

@@ -175,3 +175,28 @@ def test_mutually_exclusive_record_filters_return_empty_list(
 
     assert response.status_code == 200
     assert response.json() == []
+
+
+def test_record_cursor_pagination_is_stable_and_has_no_duplicates(
+    client,
+    filter_context,
+):
+    headers = filter_context["headers"]
+    first = client.get("/records?limit=1", headers=headers)
+    second = client.get(
+        f"/records?limit=1&cursor={first.json()[0]['id']}",
+        headers=headers,
+    )
+    third = client.get(
+        f"/records?limit=1&cursor={second.json()[0]['id']}",
+        headers=headers,
+    )
+
+    ids = [first.json()[0]["id"], second.json()[0]["id"], third.json()[0]["id"]]
+    assert first.status_code == second.status_code == third.status_code == 200
+    assert ids == [
+        str(filter_context["second_session_record"].id),
+        str(filter_context["other"].id),
+        str(filter_context["target"].id),
+    ]
+    assert len(set(ids)) == 3

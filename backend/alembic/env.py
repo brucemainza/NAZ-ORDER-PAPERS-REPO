@@ -9,12 +9,10 @@ from app import models as _models  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
-config.set_main_option(
-    "sqlalchemy.url",
-    get_settings().database_url.replace("%", "%%"),
-)
+database_url = config.attributes.get("database_url", get_settings().database_url)
+config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 target_metadata = Base.metadata
 
 
@@ -31,11 +29,18 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    connectable = engine_from_config(
+    supplied_connection = config.attributes.get("connection")
+    connectable = supplied_connection or engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
+
+    if supplied_connection is not None:
+        context.configure(connection=supplied_connection, target_metadata=target_metadata)
+        with context.begin_transaction():
+            context.run_migrations()
+        return
 
     with connectable.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata)

@@ -78,3 +78,11 @@ class SubmissionResponse(BaseModel):
     record: SubmissionRecordOut
     candidates: list[SearchResultOut]
     previously_addressed: list[SimilarityMatchOut] = Field(default_factory=list)
+    ai_degraded: bool = False
+    warnings: list[str] = Field(default_factory=list)
+
+
+class DocumentUploadResponse(BaseModel):
+    item_type: str | None
+    subject: str
+    full_text: str

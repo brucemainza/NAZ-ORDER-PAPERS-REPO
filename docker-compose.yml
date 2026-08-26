@@ -10,16 +10,25 @@ services:
       POSTGRES_DB: naz_order_papers
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./backend/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
-      - ./backend/db/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U naz_user -d naz_order_papers"]
       interval: 5s
       timeout: 5s
       retries: 5
 
+  migrate:
+    image: naz-order-papers-backend:latest
+    command: ["python", "-m", "scripts.migrate"]
+    environment:
+      - DATABASE_URL=postgresql+psycopg://naz_user:naz_password@db:5432/naz_order_papers
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
   backend:
     build: ./backend
+    image: naz-order-papers-backend:latest
     container_name: naz_order_papers_backend
     ports:
       - "8080:8000"
@@ -27,14 +36,44 @@ services:
       - DATABASE_URL=postgresql+psycopg://naz_user:naz_password@db:5432/naz_order_papers
       - FRONTEND_ORIGIN=http://localhost:3000
       - JWT_SECRET=${JWT_SECRET:-naz-order-papers-jwt-secret-change-in-production}
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./backend/app:/app/app
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request;
+          urllib.request.urlopen('http://localhost:8000/readyz', timeout=3)
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
     depends_on:
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  worker:
+    image: naz-order-papers-backend:latest
+    command: ["python", "-m", "app.jobs.worker"]
+    environment:
+      - DATABASE_URL=postgresql+psycopg://naz_user:naz_password@db:5432/naz_order_papers
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
 
   frontend:
     build: ./frontend
+    image: naz-order-papers-frontend:latest
     container_name: naz_order_papers_frontend
     ports:
       - "3000:3000"
@@ -43,29 +82,29 @@ services:
       - NEXT_PUBLIC_API_URL=
       - NEXT_PUBLIC_BACKEND_URL=http://localhost:8080
       - BACKEND_INTERNAL_URL=http://backend:8000
-      - NODE_ENV=development
+      - NODE_ENV=production
+      - SECURE_COOKIES=false
     volumes:
-      - ./frontend:/app
+      - ./frontend/public:/app/public:ro
       - /app/node_modules
-      - /app/.next
     depends_on:
       db:
         condition: service_healthy
       backend:
-        condition: service_started
-    command: npm run dev
-
-  portainer:
-    image: portainer/portainer-ce:latest
-    container_name: naz_portainer
-    ports:
-      - "9001:8000"
-      - "9000:9000"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - portainer_data:/data
-    restart: always
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          require('http').get('http://localhost:3000/', response =>
+          process.exit(response.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1))
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    restart: unless-stopped
 
 volumes:
   pgdata:
-  portainer_data:

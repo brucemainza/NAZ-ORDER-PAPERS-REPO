@@ -13,7 +13,7 @@ async function login(page) {
   expect(response.ok()).toBeTruthy();
   await page.goto("/dashboard");
   await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
-  await expect(page.getByText("Lilian Mwape", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Account menu for Lilian Mwape" })).toBeVisible();
 }
 
 async function settle(page) {
@@ -39,10 +39,11 @@ test.describe("authenticated application route visual baseline", () => {
   const routes = [
     ["dashboard", "/dashboard", "Dashboard", "dashboard.png"],
     ["submit", "/submit", "New Submission", "submit.png"],
-    ["search", "/search", "Submissions", "search.png"],
+    ["search", "/search", "Submissions Register", "search.png"],
     ["reports", "/reports", "Reports", "reports.png"],
     ["sessions", "/sessions", "Parliamentary Sessions", "sessions.png"],
     ["users", "/users", "Users", "users.png"],
+    ["notifications", "/notifications", "Notifications", "notifications.png"],
   ];
 
   for (const [name, route, heading, snapshot] of routes) {
@@ -101,14 +102,44 @@ test("keyword search displays matches from full record content", async ({ page }
       response.url().endsWith("/api/search")
       && response.request().method() === "POST",
   );
-  await page.getByLabel("Search text").fill("qualified");
+  await page.getByLabel("Search submissions").fill("qualified");
+  await page.getByRole("button", { name: "Search", exact: true }).click();
   expect((await searchResponse).ok()).toBeTruthy();
 
-  await expect(
-    page.getByRole("heading", { name: "Rural Health Post Staffing Levels" }),
-  ).toBeVisible();
   await expect(page.getByText("Matched content: qualified")).toBeVisible();
   await expect(
     page.getByText(/increase qualified staffing levels/i),
   ).toBeVisible();
+});
+
+test("submission filters stay collapsed until requested and can be reset", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await login(page);
+  await page.goto("/search");
+  await settle(page);
+
+  await expect(page.getByLabel("Session")).toHaveCount(0);
+  await page.getByRole("button", { name: "Filters", exact: true }).click();
+  await expect(page.getByLabel("Session")).toBeVisible();
+  await page.getByLabel("Item Type").selectOption("Question");
+  await page.getByRole("button", { name: "Apply filters", exact: true }).click();
+  await expect(page.getByLabel("Session")).toHaveCount(0);
+
+  await page.getByRole("button", { name: /Filters/ }).click();
+  await expect(page.getByRole("button", { name: "Reset filters", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Reset filters", exact: true }).click();
+});
+
+test("top bar opens notifications and account logout", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await login(page);
+
+  await page.getByRole("link", { name: "Open notifications" }).click();
+  await page.waitForURL(/\/notifications$/, { timeout: 30_000 });
+  await expect(page.getByRole("heading", { name: "Notifications", exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Account menu for Lilian Mwape" }).click();
+  await page.getByRole("menuitem", { name: "Log out" }).click();
+  await page.waitForURL(/\/login$/, { timeout: 30_000 });
+  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
 });

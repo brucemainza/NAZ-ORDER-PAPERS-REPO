@@ -1,5 +1,4 @@
 "use client";
-import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
 import { SearchBar } from "@/components/search/SearchBar";
 import { SubmissionCard } from "@/components/submit/SubmissionCard";
@@ -124,7 +123,7 @@ export default function SearchPage() {
     };
 
     return (<div>
-      <PageHeader title="Submissions" description="Browse submissions by session, date, member, ministry, status, type, or text." actions={<Link href="/submit"><Button variant="primary">New Submission</Button></Link>}/>
+      <PageHeader title="Submissions Register" showBreadcrumbs={false}/>
 
       <SearchBar sessions={sessions} onSearch={handleSearch} isLoading={isLoading}/>
 
@@ -143,6 +142,8 @@ export default function SearchPage() {
                 <Button variant="secondary" size="sm" disabled={page === 1 || isLoading} onClick={() => loadRecords(filters, page - 1)}>
                   Previous
                 </Button>
+                <Button size="sm" disabled>{page}</Button>
+                {hasMore ? <Button variant="secondary" size="sm" onClick={() => loadRecords(filters, page + 1)}>{page + 1}</Button> : null}
                 <Button variant="secondary" size="sm" disabled={!hasMore || isLoading} onClick={() => loadRecords(filters, page + 1)}>
                   Next
                 </Button>

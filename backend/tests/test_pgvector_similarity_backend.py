@@ -6,6 +6,11 @@ from app.models import ParliamentaryRecord, ParliamentarySession
 from app.similarity.embeddings import TokenHashEmbeddingGenerator
 
 
+# Use a dimension that matches the current schema (768). The tests exercise
+# pgvector mechanics, not model quality, so the feature-hash generator is fine.
+_EMBEDDING_DIMENSION = 768
+
+
 def _load_pgvector_backend():
     qualified_name = "app.similarity.pgvector_backend"
     try:
@@ -44,7 +49,7 @@ def _record(session, generator, *, text, status="Archived", item_type="Question"
 
 def test_pgvector_backend_returns_known_fixtures_in_similarity_order(db_session):
     backend_type = _load_pgvector_backend()
-    generator = TokenHashEmbeddingGenerator()
+    generator = TokenHashEmbeddingGenerator(dimension=_EMBEDDING_DIMENSION)
     session = _session()
     query = "rural water boreholes access"
     identical = _record(session, generator, text=query)
@@ -78,7 +83,7 @@ def test_pgvector_backend_returns_known_fixtures_in_similarity_order(db_session)
 
 def test_pgvector_backend_applies_threshold_filters_and_exclusions(db_session):
     backend_type = _load_pgvector_backend()
-    generator = TokenHashEmbeddingGenerator()
+    generator = TokenHashEmbeddingGenerator(dimension=_EMBEDDING_DIMENSION)
     session = _session()
     query = "rural water boreholes access"
     exact = _record(session, generator, text=query, status="Archived")
@@ -112,7 +117,7 @@ def test_pgvector_backend_applies_threshold_filters_and_exclusions(db_session):
 
 def test_pgvector_backend_handles_empty_and_unrelated_inputs(db_session):
     backend_type = _load_pgvector_backend()
-    generator = TokenHashEmbeddingGenerator()
+    generator = TokenHashEmbeddingGenerator(dimension=_EMBEDDING_DIMENSION)
     session = _session()
     record = _record(
         session,
@@ -133,7 +138,7 @@ def test_pgvector_backend_handles_empty_and_unrelated_inputs(db_session):
 
 def test_embedding_vector_is_persisted_with_the_configured_dimension(db_session):
     _load_pgvector_backend()
-    generator = TokenHashEmbeddingGenerator()
+    generator = TokenHashEmbeddingGenerator(dimension=_EMBEDDING_DIMENSION)
     session = _session()
     record = _record(
         session,
@@ -148,4 +153,18 @@ def test_embedding_vector_is_persisted_with_the_configured_dimension(db_session)
     persisted = db_session.get(ParliamentaryRecord, record_id)
 
     assert persisted is not None
-    assert len(persisted.embedding) == generator.dimension == 384
+    assert len(persisted.embedding) == generator.dimension == _EMBEDDING_DIMENSION
+
+
+def test_pgvector_backend_returns_no_matches_when_embedding_provider_is_offline(
+    db_session,
+):
+    backend_type = _load_pgvector_backend()
+
+    class OfflineGenerator:
+        def embed(self, _text):
+            raise RuntimeError("offline")
+
+    backend = backend_type(db_session, OfflineGenerator())
+
+    assert backend.find_similar("rural water", threshold=0.5, top_n=5) == []

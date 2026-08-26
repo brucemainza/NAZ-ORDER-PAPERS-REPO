@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronUp } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button, buttonStyles } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -28,18 +28,19 @@ export function SubmissionCard({ record }) {
     return (<Card className="submission-card">
       <div className="submission-card__layout">
         <div className="submission-card__main">
+          <div>
+            <p className="submission-card__reference">SUB-{String(record.id).slice(0, 8).toUpperCase()}</p>
+            <h3 className="submission-card__title">{record.subject}</h3>
+            <p className="submission-card__meta">
+              Submitted by {record.member} {record.ministry ? `• ${record.ministry}` : ""} • {formatDate(record.created_at)}
+            </p>
+          </div>
           <div className="submission-card__badges">
             <Badge variant={record.item_type === "Question" ? "question" : "motion"}>{record.item_type}</Badge>
             {record.answer_type ? <Badge variant="info">{record.answer_type} answer</Badge> : null}
             <Badge variant={statusVariantMap[record.status] || "info"}>{record.status}</Badge>
             {record.session_name ? <Badge variant="info">{record.session_name}</Badge> : null}
             {typeof record.search_score === "number" ? <Badge variant="clear">{record.search_score}% relevance</Badge> : null}
-          </div>
-          <div>
-            <h3 className="submission-card__title">{record.subject}</h3>
-            <p className="submission-card__meta">
-              {record.member} {record.ministry ? `• ${record.ministry}` : ""} • {formatDate(record.created_at)}
-            </p>
           </div>
           {fullText && (
             <>
@@ -62,8 +63,8 @@ export function SubmissionCard({ record }) {
         </div>
 
         <div className="submission-card__actions">
-          <Link href={`/results/${record.id}`} className={buttonStyles({ variant: "secondary", size: "sm" })}>
-            View Full Record
+          <Link href={`/results/${record.id}`} className={buttonStyles({ variant: "ghost", size: "sm" })}>
+            View Full Record <ArrowRight className="submission-card__action-icon" />
           </Link>
         </div>
       </div>
