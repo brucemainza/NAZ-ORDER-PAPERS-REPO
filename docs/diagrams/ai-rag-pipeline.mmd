@@ -1,0 +1,61 @@
+flowchart TB
+    subgraph INPUT["User request"]
+        QUERY["Query text + filters\nsession_id, item_type, status,\ndate, member, ministry"]
+        AUTH["Auth + visibility filters\nrestrict_draft_visibility\nrestrict_archive_visibility"]
+    end
+
+    subgraph LEXICAL["Lexical retrieval branch"]
+        TSQUERY["websearch_to_tsquery('english', query)"]
+        GIN["GIN index on search_vector\nsubject A | full_text B | member/ministry C"]
+        LRANK["Lexical top-k\nts_rank_cd DESC"]
+    end
+
+    subgraph SEMANTIC["Semantic retrieval branch"]
+        EMBED["Ollama POST /api/embed\nmodel: embeddinggemma:300m\ndimension: 768"]
+        COMPAT["Compatibility filter\nembedding_model + model_digest\ndimension + preprocessing_version"]
+        HNSW["pgvector HNSW cosine index\nembedding <=> query_vector"]
+        BEST["Best chunk per record\nDISTINCT record_id"]
+        SRANK["Semantic top-k\ncosine similarity DESC"]
+    end
+
+    subgraph FUSION["Rank fusion"]
+        RRF["Reciprocal Rank Fusion\nscore = Σ 1 / (k + rank), k=60"]
+        NORM["Normalise by max possible score"]
+        PAGE["Apply offset + limit"]
+    end
+
+    RESULT["Hybrid search response\nresults[] with lexical_rank,\nsemantic_rank, rrf_score,\ncosine_similarity, metadata"]
+
+    FALLBACK["Degraded lexical fallback\nretrieval_mode='lexical'\ndegraded=true + warning"]
+
+    QUERY --> AUTH
+    AUTH --> TSQUERY
+    TSQUERY --> GIN --> LRANK
+    AUTH --> EMBED
+    EMBED --> COMPAT --> HNSW --> BEST --> SRANK
+    LRANK --> RRF
+    SRANK --> RRF
+    RRF --> NORM --> PAGE --> RESULT
+
+    EMBED -. circuit open / unreachable /\nmodel missing / dimension mismatch .-> FALLBACK
+    LRANK --> FALLBACK
+
+    subgraph EXPLAIN["Grounded explanation (optional)"]
+        SELECT["Clerk selects 1-5 evidence records"]
+        VISCHECK["Visibility check +\ncache lookup"]
+        QUEUE["Queue generate_explanation job"]
+        CONTEXT["Prepare bounded context\nquery + evidence JSON"]
+        LLM["Ollama POST /api/chat\nmodel: qwen3.5:4b\nformat: JSON schema"]
+        PARSE["Parse + validate JSON\ncheck evidence IDs subset"]
+        AUDIT["Persist AIInferenceRun\nmodel, digest, latency, outcome"]
+    end
+
+    RESULT --> SELECT
+    SELECT --> VISCHECK
+    VISCHECK --> QUEUE --> CONTEXT --> LLM --> PARSE --> AUDIT
+
+    style LEXICAL fill:#E8F5E4,stroke:#126600
+    style SEMANTIC fill:#E7F1FF,stroke:#0D6EFD
+    style FUSION fill:#FDF0EB,stroke:#D4501A
+    style EXPLAIN fill:#F3E8FF,stroke:#7C3AED
+    style FALLBACK fill:#FEE2E2,stroke:#B91C1C

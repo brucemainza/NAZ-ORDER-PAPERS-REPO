@@ -9,11 +9,14 @@ import { Spinner } from "@/components/ui/Spinner";
 import { Table } from "@/components/ui/Table";
 import { formatDateTime } from "@/lib/utils";
 
+const PAGE_SIZE = 8;
+
 export default function AuditPage() {
     const [filters, setFilters] = useState({ user: "", action: "" });
     const [logs, setLogs] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [page, setPage] = useState(1);
 
     useEffect(() => {
         const params = new URLSearchParams();
@@ -33,6 +36,9 @@ export default function AuditPage() {
             })
             .finally(() => setIsLoading(false));
     }, [filters.action, filters.user]);
+
+    const pageCount = Math.max(1, Math.ceil(logs.length / PAGE_SIZE));
+    const paginatedLogs = logs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
     const columns = [
         { key: "date", header: "Date", render: (row) => formatDateTime(row.created_at) },
@@ -58,28 +64,37 @@ export default function AuditPage() {
 
     const content = useMemo(() => {
         if (isLoading) {
-            return (<div className="rounded-md border border-[--border] bg-white px-6 py-10 text-center shadow-sm">
-              <Spinner className="mx-auto h-6 w-6"/>
-              <p className="mt-3 text-sm text-[--muted]">Loading audit events...</p>
+            return (<div className="page-loading">
+              <Spinner className="page-loading__spinner"/>
+              <p className="page-loading__text">Loading audit events...</p>
             </div>);
         }
         if (error) {
             return <EmptyState title="Audit log unavailable" description={error}/>;
         }
-        return <Table columns={columns} data={logs} rowKey={(row) => row.id} emptyMessage="No audit entries match the selected filters."/>;
-    }, [error, isLoading, logs]);
+        return <Table columns={columns} data={paginatedLogs} rowKey={(row) => row.id} emptyMessage="No audit entries match the selected filters."/>;
+    }, [error, isLoading, paginatedLogs]);
 
     return (<div>
       <PageHeader title="Audit Trail" description="Review system activity, user actions and submission history for accountability." actions={<Button variant="secondary" onClick={exportToCsv} disabled={logs.length === 0}>
-            <Download className="h-4 w-4"/>
+            <Download className="audit-page__export-icon"/>
             Export to CSV
           </Button>}/>
 
-      <div className="mb-6 grid gap-4 rounded-md border border-[--border] bg-white p-5 shadow-sm md:grid-cols-2">
-        <Input label="Filter by user" placeholder="e.g. Naomi" value={filters.user} onChange={(event) => setFilters((current) => ({ ...current, user: event.target.value }))}/>
-        <Input label="Filter by action" placeholder="e.g. submitted" value={filters.action} onChange={(event) => setFilters((current) => ({ ...current, action: event.target.value }))}/>
+      <div className="audit-page__filters">
+        <Input label="Filter by user" placeholder="All Users..." value={filters.user} onChange={(event) => { setPage(1); setFilters((current) => ({ ...current, user: event.target.value })); }}/>
+        <Input label="Filter by action" placeholder="All Actions..." value={filters.action} onChange={(event) => { setPage(1); setFilters((current) => ({ ...current, action: event.target.value })); }}/>
       </div>
 
       {content}
+      {!isLoading && !error && logs.length > 0 ? <div className="audit-page__pagination">
+        <p>Showing {(page - 1) * PAGE_SIZE + 1}-{Math.min(page * PAGE_SIZE, logs.length)} of {logs.length} audit records</p>
+        <div className="audit-page__pagination-actions">
+          <Button variant="secondary" size="sm" disabled={page === 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>Previous</Button>
+          <Button size="sm" disabled>{page}</Button>
+          {page < pageCount ? <Button variant="secondary" size="sm" onClick={() => setPage((current) => Math.min(pageCount, current + 1))}>{page + 1}</Button> : null}
+          <Button variant="secondary" size="sm" disabled={page === pageCount} onClick={() => setPage((current) => Math.min(pageCount, current + 1))}>Next</Button>
+        </div>
+      </div> : null}
     </div>);
 }

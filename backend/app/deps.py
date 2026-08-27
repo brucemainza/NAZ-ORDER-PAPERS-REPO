@@ -52,9 +52,9 @@ def get_current_user(
     return user
 
 
-def require_roles(*roles: str):
+def require_permission(permission_code: str):
     def dependency(user: User = Depends(get_current_user)) -> User:
-        if user.role not in roles:
+        if not user.has_permission(permission_code):
             raise HTTPException(status_code=403, detail="Insufficient permissions")
         return user
 

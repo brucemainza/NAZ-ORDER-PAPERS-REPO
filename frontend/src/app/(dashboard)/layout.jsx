@@ -25,11 +25,11 @@ export default async function DashboardLayout({ children }) {
         redirect("/login");
     }
 
-    return (<div className="min-h-screen bg-[--bg] md:grid md:grid-cols-[272px_1fr]">
+    return (<div className="dashboard-shell">
       <Sidebar />
-      <div className="min-w-0">
+      <div className="dashboard-shell__content">
         <Topbar />
-        <main className="px-4 py-6 md:px-6">{children}</main>
+        <main className="dashboard-shell__main">{children}</main>
       </div>
     </div>);
 }

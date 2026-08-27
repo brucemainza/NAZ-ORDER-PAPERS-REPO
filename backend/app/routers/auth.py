@@ -14,6 +14,21 @@ from app.schemas.auth import LoginRequest, LoginResponse, UserOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 security = HTTPBearer(auto_error=False)
+INVALID_CREDENTIALS = "Invalid employee ID or password."
+MAX_FAILED_LOGIN_ATTEMPTS = 5
+
+
+def user_out(user: User) -> UserOut:
+    return UserOut(
+        id=str(user.id),
+        employeeId=user.employee_id,
+        name=user.name,
+        role=user.primary_role_name,
+        roles=user.role_names,
+        permissions=user.permission_codes,
+        status=user.status,
+        lastLogin=user.last_login_at.isoformat() if user.last_login_at else None,
+    )
 
 
 @router.post("/login", response_model=LoginResponse)
@@ -24,21 +39,29 @@ def login(request: LoginRequest, req: Request, db: Session = Depends(get_db)):
     user = result.scalars().first()
 
     if not user or user.status != "Active":
-        raise HTTPException(status_code=401, detail="Invalid employee ID or password.")
+        raise HTTPException(status_code=401, detail=INVALID_CREDENTIALS)
 
-    if not user.password_hash:
-        raise HTTPException(status_code=401, detail="Invalid employee ID or password.")
+    if not user.password_hash or user.locked_at is not None:
+        raise HTTPException(status_code=401, detail=INVALID_CREDENTIALS)
 
     if not verify_password(request.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid employee ID or password.")
+        user.failed_login_attempts += 1
+        if user.failed_login_attempts >= MAX_FAILED_LOGIN_ATTEMPTS:
+            user.locked_at = datetime.now(timezone.utc)
+        db.commit()
+        raise HTTPException(status_code=401, detail=INVALID_CREDENTIALS)
 
+    user.failed_login_attempts = 0
+    user.locked_at = None
     user.last_login_at = datetime.now(timezone.utc)
 
     token, jti = create_access_token({
         "sub": str(user.id),
         "employeeId": user.employee_id,
         "name": user.name,
-        "role": user.role,
+        "role": user.primary_role_name,
+        "roles": user.role_names,
+        "permissions": user.permission_codes,
         "status": user.status,
     })
 
@@ -67,14 +90,7 @@ def login(request: LoginRequest, req: Request, db: Session = Depends(get_db)):
 
     return LoginResponse(
         token=token,
-        user=UserOut(
-            id=str(user.id),
-            employeeId=user.employee_id,
-            name=user.name,
-            role=user.role,
-            status=user.status,
-            lastLogin=user.last_login_at.isoformat() if user.last_login_at else None,
-        ),
+        user=user_out(user),
     )
 
 
@@ -110,14 +126,7 @@ def me(credentials: HTTPAuthorizationCredentials = Depends(security), db: Sessio
     if user.status != "Active":
         raise HTTPException(status_code=401, detail="Account inactive")
 
-    return UserOut(
-        id=str(user.id),
-        employeeId=user.employee_id,
-        name=user.name,
-        role=user.role,
-        status=user.status,
-        lastLogin=user.last_login_at.isoformat() if user.last_login_at else None,
-    )
+    return user_out(user)
 
 
 @router.post("/logout")

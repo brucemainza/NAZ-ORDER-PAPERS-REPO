@@ -2,14 +2,13 @@ import { Badge } from "@/components/ui/Badge";
 import { Table } from "@/components/ui/Table";
 import { formatDate } from "@/lib/utils";
 const statusVariantMap = {
-    Pending: "pending",
-    "Pending Review": "pending",
-    Reviewed: "reviewed",
-    Duplicate: "duplicate",
-    Clear: "clear",
-    "Clear (New)": "clear",
-    "Substantially Similar": "similar",
-    Historical: "reviewed",
+    Draft: "info",
+    Submitted: "info",
+    "Under Review": "pending",
+    Approved: "clear",
+    Rejected: "duplicate",
+    Scheduled: "reviewed",
+    Archived: "reviewed",
 };
 export function RecentActivity({ submissions, sessions = [] }) {
     const sessionMap = new Map(sessions.map((session) => [session.id, session.name]));
@@ -17,7 +16,7 @@ export function RecentActivity({ submissions, sessions = [] }) {
         {
             key: "type",
             header: "Item Type",
-            render: (row) => <Badge variant={row.type === "Question" ? "question" : "motion"}>{row.type}</Badge>,
+            render: (row) => row.type,
         },
         {
             key: "session",

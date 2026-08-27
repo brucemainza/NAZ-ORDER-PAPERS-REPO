@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NAZ Order Papers — As-Built RAG Architecture</title>
+  <style>
+    :root {
+      --bg: #f8f9fa;
+      --fg: #212529;
+      --muted: #6c757d;
+      --accent: #0d6efd;
+      --accent-light: #e7f1ff;
+      --success: #198754;
+      --success-light: #d1e7dd;
+      --warning: #fd7e14;
+      --warning-light: #fff3cd;
+      --danger: #dc3545;
+      --danger-light: #f8d7da;
+      --border: #dee2e6;
+      --card: #ffffff;
+      --code-bg: #f5f5f5;
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+
+    header {
+      border-bottom: 2px solid var(--accent);
+      padding-bottom: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    h1 {
+      font-size: 1.9rem;
+      margin: 0 0 0.5rem;
+      color: var(--accent);
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 1.05rem;
+      margin: 0;
+    }
+
+    h2 {
+      font-size: 1.5rem;
+      margin-top: 2.5rem;
+      margin-bottom: 1rem;
+      padding-bottom: 0.4rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    h3 {
+      font-size: 1.2rem;
+      margin-top: 2rem;
+      margin-bottom: 0.75rem;
+      color: #343a40;
+    }
+
+    h4 {
+      font-size: 1.05rem;
+      margin-top: 1.5rem;
+      margin-bottom: 0.5rem;
+      color: #495057;
+    }
+
+    p { margin: 0.75rem 0; }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .callout {
+      border-left: 4px solid var(--accent);
+      background: var(--accent-light);
+      padding: 1rem 1.25rem;
+      margin: 1.25rem 0;
+      border-radius: 0 6px 6px 0;
+    }
+
+    .callout.success { border-color: var(--success); background: var(--success-light); }
+    .callout.warning { border-color: var(--warning); background: var(--warning-light); }
+    .callout.danger { border-color: var(--danger); background: var(--danger-light); }
+
+    .callout-title {
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+
+    ul, ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+    li { margin: 0.35rem 0; }
+
+    code {
+      font-family: var(--mono);
+      background: var(--code-bg);
+      padding: 0.15rem 0.35rem;
+      border-radius: 4px;
+      font-size: 0.9em;
+      word-break: break-word;
+    }
+
+    pre {
+      font-family: var(--mono);
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 1rem;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 0.85rem;
+      line-height: 1.45;
+      margin: 1rem 0;
+    }
+
+    pre code {
+      background: transparent;
+      padding: 0;
+      color: inherit;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 0.7rem 0.85rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    th {
+      background: #f1f3f5;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    .file-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .file-list li {
+      padding: 0.6rem 0.8rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      margin: 0.5rem 0;
+      background: var(--card);
+    }
+
+    .file-list code {
+      background: var(--accent-light);
+      color: #052c65;
+      font-weight: 600;
+    }
+
+    .phase {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin: 1rem 0;
+    }
+
+    .phase h4 { margin-top: 0; }
+
+    .badge {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+
+    .badge.new { background: var(--success-light); color: var(--success); }
+    .badge.change { background: var(--warning-light); color: #664d03; }
+    .badge.keep { background: #e2e3e5; color: #41464b; }
+
+    .diagram {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem;
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      line-height: 1.5;
+      overflow-x: auto;
+      margin: 1rem 0;
+    }
+
+    .diagram .box { color: #0d6efd; font-weight: 600; }
+    .diagram .db { color: #6f42c1; font-weight: 600; }
+    .diagram .model { color: #fd7e14; font-weight: 600; }
+    .diagram .user { color: #198754; font-weight: 600; }
+
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .toc {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.5rem;
+      margin: 1.5rem 0;
+    }
+
+    .toc ul { list-style: none; padding-left: 0; }
+    .toc li { margin: 0.25rem 0; }
+    .toc a { font-weight: 500; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>NAZ Order Papers — As-Built RAG Architecture</h1>
+      <p class="subtitle">How the current AI retrieval and explanation pipeline works end-to-end.</p>
+    </header>
+
+    <nav class="toc">
+      <strong>Contents</strong>
+      <ul>
+        <li><a href="#overview">1. Overview</a></li>
+        <li><a href="#architecture">2. System Architecture</a></li>
+        <li><a href="#models">3. Models &amp; Configuration</a></li>
+        <li><a href="#storage">4. Chunk &amp; Vector Storage</a></li>
+        <li><a href="#indexing">5. Indexing Pipeline</a></li>
+        <li><a href="#retrieval">6. Hybrid Retrieval Pipeline</a></li>
+        <li><a href="#explanation">7. Grounded Explanation Pipeline</a></li>
+        <li><a href="#endpoints">8. API Endpoints</a></li>
+        <li><a href="#security">9. Access Control &amp; Audit</a></li>
+        <li><a href="#resilience">10. Resilience &amp; Degraded Modes</a></li>
+        <li><a href="#filemap">11. File Map</a></li>
+        <li><a href="#ops">12. Operational Notes</a></li>
+      </ul>
+    </nav>
+
+    <section id="overview">
+      <h2>1. Overview</h2>
+      <p>
+        The Order Papers system now uses a <strong>Retrieval-Augmented Generation (RAG)</strong> pipeline to help parliamentary staff detect duplicate, substantially similar, or related questions and motions before they are scheduled. The pipeline is deliberately local-first: embeddings and LLM inference are served by a local Ollama instance, and all vector data stays in the existing PostgreSQL + pgvector database.
+      </p>
+      <p>
+        The design principle is unchanged: <strong>retrieval first, grounded explanation second, human decision last</strong>. The LLM never invents procedural facts; it only classifies and summarises the evidence that retrieval found.
+      </p>
+
+      <div class="callout success">
+        <div class="callout-title">What is implemented today</div>
+        <ul>
+          <li>768-dimensional semantic embeddings via Ollama <code>embeddinggemma:300m</code>.</li>
+          <li>Chunk-level indexing with content hashing and model-digest tracking.</li>
+          <li>Hybrid retrieval: PostgreSQL full-text search + pgvector cosine search fused with Reciprocal Rank Fusion.</li>
+          <li>Grounded explanations from Ollama <code>qwen3.5:4b</code> with a strict JSON schema.</li>
+          <li>Asynchronous explanation jobs, idempotent re-indexing, and an audit trail.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="architecture">
+      <h2>2. System Architecture</h2>
+      <p>The AI layer lives inside the existing FastAPI backend as the <code>app/ai</code> package. It reuses the same authentication, permissions, database sessions, and audit logging as the rest of the application.</p>
+
+      <div class="diagram">
+        <div class="user">Parliamentary staff / Clerk</div>
+        &nbsp;&nbsp;│<br>
+        &nbsp;&nbsp;▼<br>
+        <div class="box">Next.js frontend</div>
+        &nbsp;&nbsp;│ POST /api/ai/search or /api/ai/explain<br>
+        &nbsp;&nbsp;▼<br>
+        <div class="box">FastAPI backend — app/ai/router.py</div>
+        &nbsp;&nbsp;│ auth, validation, visibility filters, audit<br>
+        &nbsp;&nbsp;▼<br>
+        <div class="box">app/ai/service.py — AISimilarityService</div>
+        &nbsp;&nbsp;├─→ <div class="box" style="display:inline">app/ai/retrieval/lexical.py</div> (PostgreSQL tsvector)<br>
+        &nbsp;&nbsp;├─→ <div class="box" style="display:inline">app/ai/retrieval/semantic.py</div> (pgvector on RecordChunk)<br>
+        &nbsp;&nbsp;▼<br>
+        <div class="box">app/ai/retrieval/hybrid.py — RRF k=60</div>
+        &nbsp;&nbsp;│<br>
+        &nbsp;&nbsp;▼<br>
+        <div class="box">app/ai/generation/ollama_explainer.py</div>
+        &nbsp;&nbsp;│ HTTP localhost:11434/api/chat<br>
+        &nbsp;&nbsp;▼<br>
+        <div class="model">Ollama (local)</div>
+        &nbsp;&nbsp;├─→ <div class="model" style="display:inline">embeddinggemma:300m</div> (768-dim embeddings)<br>
+        &nbsp;&nbsp;└─→ <div class="model" style="display:inline">qwen3.5:4b</div> (generator)<br>
+        &nbsp;&nbsp;▼<br>
+        <div class="db">PostgreSQL + pgvector</div>
+        &nbsp;&nbsp;├─→ <code>parliamentary_records</code> (source records + search_vector)<br>
+        &nbsp;&nbsp;└─→ <code>record_chunks</code> (chunked text + 768-dim embeddings)<br>
+        &nbsp;&nbsp;▼<br>
+        <div class="box">app/jobs/worker.py — durable background worker</div>
+      </div>
+
+      <h3>Why it stays inside the backend</h3>
+      <ul>
+        <li>Reuses existing authentication, permissions, audit logging, and database session management.</li>
+        <li>Avoids an extra HTTP service on a CPU-only machine.</li>
+        <li>Slow LLM work is offloaded to the background worker; the search endpoint itself only touches PostgreSQL and Ollama embeddings.</li>
+      </ul>
+    </section>
+
+    <section id="models">
+      <h2>3. Models &amp; Configuration</h2>
+      <p>Model names and tunables are read from environment variables in <code>backend/app/config.py</code>.</p>
+
+      <table>
+        <thead>
+          <tr><th>Setting</th><th>Default</th><th>Purpose</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>OLLAMA_EMBEDDING_MODEL</code></td><td><code>embeddinggemma:300m</code></td><td>Generates 768-dim embeddings via Ollama <code>/api/embed</code>.</td></tr>
+          <tr><td><code>OLLAMA_LLM_MODEL</code></td><td><code>qwen3.5:4b</code></td><td>Produces grounded explanations via Ollama <code>/api/chat</code>.</td></tr>
+          <tr><td><code>AI_EMBEDDING_DIMENSION</code></td><td><code>768</code></td><td>Expected vector dimension; mismatches raise a runtime error.</td></tr>
+          <tr><td><code>AI_RRF_K</code></td><td><code>60</code></td><td>Reciprocal Rank Fusion smoothing constant.</td></tr>
+          <tr><td><code>AI_LEXICAL_TOP_K</code></td><td><code>20</code></td><td>Full-text candidates before fusion.</td></tr>
+          <tr><td><code>AI_SEMANTIC_TOP_K</code></td><td><code>20</code></td><td>Vector candidates before fusion.</td></tr>
+          <tr><td><code>AI_FINAL_TOP_K</code></td><td><code>5</code></td><td>Default number of fused results returned.</td></tr>
+          <tr><td><code>AI_CHUNK_MAX_CHARS</code></td><td><code>1800</code></td><td>Maximum characters per chunk.</td></tr>
+          <tr><td><code>AI_CHUNK_OVERLAP_CHARS</code></td><td><code>240</code></td><td>Overlap between consecutive chunks.</td></tr>
+          <tr><td><code>AI_PREPROCESSING_VERSION</code></td><td><code>chunks-v1</code></td><td>Allows re-indexing when chunking changes.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="storage">
+      <h2>4. Chunk &amp; Vector Storage</h2>
+      <p>Instead of storing one embedding per parliamentary record, the system stores <strong>multiple chunks per record</strong> in the <code>record_chunks</code> table. This gives better retrieval quality for long motions and keeps embeddings aligned with the chunk of text that produced them.</p>
+
+      <h3>Key columns on <code>record_chunks</code></h3>
+      <ul>
+        <li><code>record_id</code> — foreign key to the parliamentary record.</li>
+        <li><code>chunk_index</code> — position within the record.</li>
+        <li><code>chunk_text</code> — the actual chunked passage, prefixed with the subject.</li>
+        <li><code>embedding</code> — 768-dimensional pgvector.</li>
+        <li><code>embedding_model</code> — model name, e.g. <code>embeddinggemma:300m</code>.</li>
+        <li><code>model_digest</code> — Ollama model digest, so a model update automatically triggers re-indexing.</li>
+        <li><code>dimension</code> — vector dimension for sanity checks.</li>
+        <li><code>preprocessing_version</code> — chunking/version tag.</li>
+        <li><code>content_hash</code> — SHA-256 of <code>chunk_text</code>; unchanged chunks are skipped on re-index.</li>
+      </ul>
+
+      <h3>Lexical source</h3>
+      <p>The <code>parliamentary_records.search_vector</code> column is a PostgreSQL <code>tsvector</code>. Lexical search uses <code>websearch_to_tsquery('english', query)</code> and <code>ts_rank_cd</code>, so exact terms, quoted phrases, and negation work as staff expect.</p>
+    </section>
+
+    <section id="indexing">
+      <h2>5. Indexing Pipeline</h2>
+      <p>Indexing is asynchronous and durable. The web request only enqueues work; the actual embedding happens in the background worker.</p>
+
+      <ol>
+        <li><strong>Trigger</strong> — <code>POST /ai/index/{record_id}</code> or <code>POST /ai/reindex</code> enqueues an outbox job.</li>
+        <li><strong>Deduplication</strong> — jobs are keyed by <code>record_id + version + content_hash + model_digest + preprocessing_version</code>, so duplicate or stale requests are collapsed.</li>
+        <li><strong>Background work</strong> — <code>app/jobs/worker.py</code> claims the job, builds the similarity text, and asks Ollama for an embedding.</li>
+        <li><strong>Chunking</strong> — <code>chunk_record()</code> in <code>app/ai/indexing/chunks.py</code> splits text into overlapping chunks of up to <code>AI_CHUNK_MAX_CHARS</code>.</li>
+        <li><strong>Upsert</strong> — <code>ChunkIndexingService.index_record()</code> deletes stale chunks, skips unchanged ones, and inserts only missing chunks.</li>
+        <li><strong>Coverage</strong> — <code>GET /ai/index/coverage</code> reports what percentage of non-draft records are indexed for the current model digest.</li>
+      </ol>
+
+      <div class="callout">
+        <div class="callout-title">Why chunk-level indexing?</div>
+        <p>Chunk-level embeddings let semantic retrieval find the most relevant passage inside a long motion, not just the record as a whole. The <code>content_hash</code> and <code>model_digest</code> fields make re-indexing safe and idempotent.</p>
+      </div>
+    </section>
+
+    <section id="retrieval">
+      <h2>6. Hybrid Retrieval Pipeline</h2>
+      <p>The search endpoint runs two retrievers in parallel, then fuses the results.</p>
+
+      <h3>6.1 Lexical retrieval — <code>app/ai/retrieval/lexical.py</code></h3>
+      <p><code>PostgresLexicalRetriever</code> uses <code>websearch_to_tsquery</code> over <code>parliamentary_records.search_vector</code>. Results are ranked by <code>ts_rank_cd</code> and limited to the configured top-k. Filters (session, item_type, status, date, member, ministry, exclude_ids) are applied inside PostgreSQL.</p>
+
+      <h3>6.2 Semantic retrieval — <code>app/ai/retrieval/semantic.py</code></h3>
+      <p><code>PgVectorSemanticRetriever</code> embeds the query via Ollama, then searches <code>record_chunks.embedding</code> using pgvector cosine distance. It filters by:</p>
+      <ul>
+        <li><code>embedding_model</code>, <code>model_digest</code>, <code>dimension</code>, and <code>preprocessing_version</code> — so only compatible chunks are considered.</li>
+        <li>The same visibility and metadata filters as lexical search.</li>
+      </ul>
+      <p>It collapses multiple chunks per record, returning only the best chunk (lowest cosine distance) for each record, then orders records by that distance.</p>
+
+      <h3>6.3 Rank fusion — <code>app/ai/retrieval/hybrid.py</code></h3>
+      <p><code>RRFRankFusion</code> merges the two ranked lists with Reciprocal Rank Fusion:</p>
+      <pre><code>RRF_score(doc) = Σ 1 / (k + rank_in_list)
+
+# k = 60 by default
+lexical_rank = 3  → 1 / (60 + 3) = 0.0159
+semantic_rank = 1 → 1 / (60 + 1) = 0.0164
+RRF_score       = 0.0323</code></pre>
+      <p>The fused list is normalised by the maximum possible score and returned as the final ranking. Each result carries its lexical rank, semantic rank, lexical score, cosine similarity, and RRF score.</p>
+
+      <h3>6.4 Degraded mode</h3>
+      <p>If Ollama embedding generation fails (network error, model not loaded, circuit breaker open), the service catches the error, logs it, and falls back to <strong>lexical-only</strong> retrieval. The response reports <code>retrieval_mode: "lexical"</code>, <code>degraded: true</code>, and a warning message.</p>
+    </section>
+
+    <section id="explanation">
+      <h2>7. Grounded Explanation Pipeline</h2>
+      <p>After retrieval, a clerk can request an AI explanation of why the top records are relevant. The explanation is generated by a local LLM and constrained to a strict JSON schema.</p>
+
+      <h3>7.1 Synchronous endpoint — <code>POST /ai/explain</code></h3>
+      <ol>
+        <li>The router verifies that the supplied evidence records exist and are visible to the user.</li>
+        <li><code>AISimilarityService.explain()</code> builds the prompt and calls <code>OllamaExplanationProvider</code>.</li>
+        <li>The provider sends the prompt to Ollama <code>/api/chat</code> with <code>temperature=0.1</code> and the JSON schema.</li>
+        <li>The response is parsed and stored in <code>AIInferenceRun</code> for audit.</li>
+      </ol>
+
+      <h3>7.2 Asynchronous endpoint — <code>POST /ai/explanations</code></h3>
+      <p>For longer-running explanations, the request queues a <code>generate_explanation</code> background job and returns <code>202 Accepted</code>. The client polls <code>GET /ai/explanations/{run_id}</code> until the run completes or fails.</p>
+
+      <h3>7.3 Caching</h3>
+      <p>Explanations are cached by a hash of:</p>
+      <ul>
+        <li>Normalised query text.</li>
+        <li>Sorted evidence record IDs.</li>
+        <li>Prompt version.</li>
+        <li>Model digest.</li>
+      </ul>
+      <p>If an identical explanation was already generated, the stored result is returned immediately with <code>cached: true</code>.</p>
+
+      <h3>7.4 Prompt design</h3>
+      <p>The prompt wraps the query and evidence in <code>&lt;unrusted-query&gt;</code> and <code>&lt;untrusted-evidence&gt;</code> delimiters and instructs the model to treat them as data, not instructions. The expected JSON schema includes:</p>
+      <ul>
+        <li><code>classification</code> — one of <code>exact_duplicate</code>, <code>potential_duplicate</code>, <code>related_matter</code>, <code>no_strong_match</code>.</li>
+        <li><code>confidence</code> — <code>low</code>, <code>medium</code>, or <code>high</code>.</li>
+        <li><code>summary</code>, <code>shared_points</code>, <code>important_differences</code>.</li>
+        <li><code>evidence_assessments</code> — per-record classification and rationale.</li>
+        <li><code>human_review_required</code> — always <code>true</code>.</li>
+      </ul>
+    </section>
+
+    <section id="endpoints">
+      <h2>8. API Endpoints</h2>
+      <p>All endpoints are mounted under <code>/ai</code> in <code>backend/app/ai/router.py</code>.</p>
+
+      <table>
+        <thead>
+          <tr><th>Method</th><th>Path</th><th>Purpose</th><th>Permission</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>GET</td><td><code>/ai/health</code></td><td>Reports Ollama reachability and whether the configured models are loaded.</td><td>authenticated</td></tr>
+          <tr><td>POST</td><td><code>/ai/search</code></td><td>Hybrid lexical + semantic search over records.</td><td><code>search_records</code></td></tr>
+          <tr><td>POST</td><td><code>/ai/explain</code></td><td>Synchronous grounded explanation.</td><td><code>review_submission</code></td></tr>
+          <tr><td>POST</td><td><code>/ai/explanations</code></td><td>Queue an asynchronous explanation job.</td><td><code>review_submission</code></td></tr>
+          <tr><td>GET</td><td><code>/ai/explanations/{run_id}</code></td><td>Retrieve a queued explanation result.</td><td><code>review_submission</code></td></tr>
+          <tr><td>GET</td><td><code>/ai/index/coverage</code></td><td>Report indexing coverage for the current model digest.</td><td><code>review_submission</code></td></tr>
+          <tr><td>POST</td><td><code>/ai/index/{record_id}</code></td><td>Queue embedding/indexing for one record.</td><td><code>review_submission</code></td></tr>
+          <tr><td>POST</td><td><code>/ai/reindex</code></td><td>Queue batch re-indexing with pagination cursor.</td><td><code>review_submission</code></td></tr>
+          <tr><td>POST</td><td><code>/ai/review</code></td><td>Save the human reviewer's final decision.</td><td><code>review_submission</code></td></tr>
+        </tbody>
+      </table>
+
+      <h3>Example <code>POST /ai/search</code> request/response</h3>
+      <pre><code>// Request
+{
+  "query_text": "Motion urging Government to rehabilitate township roads in Kitwe",
+  "session_id": "<uuid>",
+  "item_type": "motion",
+  "limit": 5
+}
+
+// Response
+{
+  "query_text": "Motion urging Government to rehabilitate township roads in Kitwe",
+  "results": [
+    {
+      "record_id": "<uuid>",
+      "score": 0.82,
+      "lexical_rank": 2,
+      "semantic_rank": 1,
+      "rrf_score": 0.0323,
+      "lexical_score": 0.91,
+      "cosine_similarity": 0.78,
+      "metadata": {
+        "subject": "Rehabilitation of township roads",
+        "member": "Hon. M. Banda",
+        "ministry": "Ministry of Local Government",
+        "chunk_excerpt": "Subject: Rehabilitation of township roads..."
+      }
+    }
+  ],
+  "embedding_model": "embeddinggemma:300m",
+  "total_lexical": 20,
+  "total_semantic": 20,
+  "retrieval_mode": "hybrid",
+  "degraded": false,
+  "warnings": []
+}</code></pre>
+    </section>
+
+    <section id="security">
+      <h2>9. Access Control &amp; Audit</h2>
+      <ul>
+        <li><strong>Visibility filters</strong> — both lexical and semantic retrievers apply <code>restrict_draft_visibility</code> and <code>restrict_archive_visibility</code> so users only see records they are allowed to see.</li>
+        <li><strong>Evidence verification</strong> — the <code>/ai/explain</code> and async explanation endpoints check that every supplied record ID exists and is visible to the requesting user before calling the LLM.</li>
+        <li><strong>Audit logging</strong> — every AI search, explanation, index, reindex, and review action writes an audit log entry with the user, action, entity, and IP address.</li>
+        <li><strong>Inference runs</strong> — every explanation is stored in <code>AIInferenceRun</code> with the model, model digest, prompt version, latency, result, and error.</li>
+      </ul>
+    </section>
+
+    <section id="resilience">
+      <h2>10. Resilience &amp; Degraded Modes</h2>
+      <table>
+        <thead>
+          <tr><th>Failure</th><th>Behaviour</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Ollama unreachable / model not loaded</td><td>Search falls back to lexical-only. Explanation returns a disabled/fallback response. Health endpoint reports the failure.</td></tr>
+          <tr><td>Embedding dimension mismatch</td><td>Raises <code>RuntimeError</code>; search degrades to lexical-only with a warning.</td></tr>
+          <tr><td>LLM returns invalid JSON</td><td>The explainer retries with stricter instructions; if it still fails, the result contains an <code>error</code> field and <code>human_review_required: true</code>.</td></tr>
+          <tr><td>Background job fails</td><td>Worker retries with exponential backoff up to <code>max_attempts</code>, then moves the job to <code>dead_letter</code>.</td></tr>
+          <tr><td>Stale indexing request</td><td>If the record was edited after the job was queued, the worker detects the content hash mismatch and skips the stale job.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="filemap">
+      <h2>11. File Map</h2>
+
+      <h3>Configuration &amp; orchestration</h3>
+      <ul class="file-list">
+        <li><code>backend/app/config.py</code> <span class="badge keep">Keep</span><br>Reads all AI-related environment variables: model names, dimensions, RRF constants, chunking sizes, timeouts, thresholds.</li>
+        <li><code>backend/app/main.py</code> <span class="badge keep">Keep</span><br>Mounts <code>app.ai.router</code> at <code>/ai</code>.</li>
+        <li><code>backend/app/ai/router.py</code> <span class="badge keep">Keep</span><br>FastAPI endpoints for health, search, explain, explanations, indexing, reindexing, and review.</li>
+        <li><code>backend/app/ai/service.py</code> <span class="badge keep">Keep</span><br><code>AISimilarityService</code> orchestrates lexical search, semantic search, fusion, explanation, and health checks.</li>
+        <li><code>backend/app/ai/dependencies.py</code> <span class="badge keep">Keep</span><br>FastAPI dependency providers for the AI service and embedding provider.</li>
+      </ul>
+
+      <h3>Retrieval</h3>
+      <ul class="file-list">
+        <li><code>backend/app/ai/retrieval/lexical.py</code> <span class="badge keep">Keep</span><br>PostgreSQL full-text retrieval with visibility and metadata filters.</li>
+        <li><code>backend/app/ai/retrieval/semantic.py</code> <span class="badge keep">Keep</span><br>pgvector cosine search over <code>record_chunks</code>, returning the best chunk per record.</li>
+        <li><code>backend/app/ai/retrieval/hybrid.py</code> <span class="badge keep">Keep</span><br>Reciprocal Rank Fusion of lexical and semantic ranked lists.</li>
+        <li><code>backend/app/ai/retrieval/benchmark.py</code> <span class="badge keep">Keep</span><br>Benchmark helpers used by <code>backend/scripts/benchmark_search.py</code> and tests.</li>
+      </ul>
+
+      <h3>Embeddings &amp; indexing</h3>
+      <ul class="file-list">
+        <li><code>backend/app/ai/embeddings/ollama_provider.py</code> <span class="badge keep">Keep</span><br><code>OllamaEmbeddingProvider</code> calls Ollama <code>/api/embed</code> with retries and a circuit breaker.</li>
+        <li><code>backend/app/ai/indexing/chunks.py</code> <span class="badge keep">Keep</span><br>Chunking, chunk upsert, coverage reporting, and batch backfill queueing.</li>
+        <li><code>backend/app/ai/interfaces.py</code> <span class="badge keep">Keep</span><br>Abstract protocols for embedding provider, retrievers, rank fusion, and explainer.</li>
+        <li><code>backend/app/ai/normalization.py</code> <span class="badge keep">Keep</span><br>Text normalisation used before embedding and duplicate hashing.</li>
+      </ul>
+
+      <h3>Generation &amp; explanation</h3>
+      <ul class="file-list">
+        <li><code>backend/app/ai/generation/ollama_explainer.py</code> <span class="badge keep">Keep</span><br>Calls Ollama <code>/api/chat</code>, parses structured JSON, and handles retries/fallbacks.</li>
+        <li><code>backend/app/ai/generation/prompts.py</code> <span class="badge keep">Keep</span><br>System prompt and JSON schema for grounded explanations.</li>
+        <li><code>backend/app/ai/explanations.py</code> <span class="badge keep">Keep</span><br>Context preparation, inference cache key, queueing, and background processing of explanation runs.</li>
+        <li><code>backend/app/ai/schemas.py</code> <span class="badge keep">Keep</span><br>Pydantic models for search requests/responses, explanations, and review submissions.</li>
+      </ul>
+
+      <h3>Background worker</h3>
+      <ul class="file-list">
+        <li><code>backend/app/jobs/worker.py</code> <span class="badge keep">Keep</span><br>Durable worker that claims jobs, generates embeddings, indexes chunks, runs explanations, and archives records.</li>
+        <li><code>backend/app/jobs/queue.py</code> <span class="badge keep">Keep</span><br>Outbox job queue used by indexing and explanation flows.</li>
+      </ul>
+
+      <h3>Scripts</h3>
+      <ul class="file-list">
+        <li><code>backend/scripts/benchmark_search.py</code> <span class="badge keep">Keep</span><br>Benchmarks lexical, semantic, and hybrid retrieval.</li>
+        <li><code>backend/scripts/evaluate_similarity_thresholds.py</code> <span class="badge keep">Keep</span><br>Evaluates duplicate-detection thresholds.</li>
+      </ul>
+    </section>
+
+    <section id="ops">
+      <h2>12. Operational Notes</h2>
+
+      <h3>Running the worker</h3>
+      <pre><code>cd backend
+python -m app.jobs.worker</code></pre>
+      <p>The worker polls every 2 seconds by default. Use <code>--once</code> to process one batch and exit, which is useful in cron-style deployments.</p>
+
+      <h3>Re-indexing after a model or chunking change</h3>
+      <pre><code># Queue the first batch of 100 records
+curl -X POST http://localhost:8000/ai/reindex \
+  -H "Authorization: Bearer &lt;token&gt;" \
+  -H "Content-Type: application/json" \
+  -d '{"limit": 100}'
+
+# The response includes next_cursor; repeat until complete=true.</code></pre>
+
+      <h3>Checking health</h3>
+      <pre><code>curl http://localhost:8000/ai/health</code></pre>
+
+      <h3>When to change the preprocessing version</h3>
+      <p>If the chunking strategy changes (for example, <code>AI_CHUNK_MAX_CHARS</code> or <code>AI_CHUNK_OVERLAP_CHARS</code>), increment <code>AI_PREPROCESSING_VERSION</code>. The new version causes the system to treat old chunks as incompatible and re-index them.</p>
+
+      <h3>Scaling considerations</h3>
+      <ul>
+        <li>The current design is local-first and CPU-bound. If latency becomes a problem, the first lever is usually adding an HNSW index on <code>record_chunks.embedding</code>.</li>
+        <li>If Ollama becomes a bottleneck, the embedding provider can be swapped for another implementation of the <code>EmbeddingProvider</code> protocol without changing retrieval code.</li>
+        <li>If LLM explanations need to run on a GPU server, only <code>OllamaExplanationProvider</code> and the Ollama base URL need to change.</li>
+      </ul>
+    </section>
+
+    <footer>
+      <p>
+        Generated from the current NAZ Order Papers codebase. This document reflects the as-built RAG pipeline rather than a future implementation plan.
+      </p>
+    </footer>
+  </div>
+</body>
+</html>

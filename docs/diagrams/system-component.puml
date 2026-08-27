@@ -1,0 +1,101 @@
+@startuml NAZ_Order_Papers_System_Architecture
+!theme plain
+skinparam componentStyle uml2
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam linetype ortho
+skinparam backgroundColor #F4F6F3
+
+skinparam component {
+    BackgroundColor<<Browser>> #E8F5E4
+    BorderColor<<Browser>> #126600
+}
+
+skinparam database {
+    BackgroundColor #FDF0EB
+    BorderColor #D4501A
+}
+
+skinparam node {
+    BackgroundColor #FFFFFF
+    BorderColor #D9DDD8
+}
+
+title NAZ Order Papers — Full System UML Component Architecture
+
+actor "Parliamentary staff" as Staff
+
+node "Developer workstation" as Host {
+    component "Web browser" as Browser <<Browser>>
+    component "Ollama\n172.17.0.1:11434" as Ollama
+}
+
+node "Docker Compose network" as Compose {
+    package "Next.js 15 frontend\n:3000" as WebPkg {
+        component "React pages & components" as UI
+        component "JWT navigation middleware" as Middleware
+        component "Same-origin /api BFF routes" as BFF
+        component "HTTP-only naz_token cookie" as Cookie
+    }
+
+    package "FastAPI backend\n:8000" as ApiPkg {
+        component "API routers\n/auth /submissions /records\n/search /reviews /scheduling\n/reports /ai" as Routes
+        component "Authentication, permissions\nand record visibility" as Access
+        component "Workflow & domain services" as Domain
+        component "Hybrid retrieval service\nlexical + semantic + RRF" as Retrieval
+        component "Readiness & liveness checks" as Ready
+        component "Structured request logs" as Logs
+        component "Pydantic schemas & validation" as Schemas
+    }
+
+    component "Durable background worker\npython -m app.jobs.worker" as Worker
+    component "One-shot Alembic migrator\npython -m scripts.migrate" as Migrator
+
+    database "PostgreSQL 16 + pgvector\n:5432" as DB {
+        component "Domain, auth, workflow\nand audit tables" as DomainDB
+        component "Weighted tsvector + GIN" as FTS
+        component "record_chunks vector(768)\n+ HNSW cosine index" as Vectors
+        component "background_jobs + outbox_events" as Queue
+        component "worker_heartbeats" as Heartbeat
+        component "ai_inference_runs" as InferenceAudit
+    }
+}
+
+Staff --> Browser : uses
+Browser --> UI : HTTP :3000
+UI --> Middleware : protects routes
+Middleware <--> Cookie : reads/writes
+UI --> BFF : fetch /api/*
+BFF --> Routes : Bearer JWT + JSON
+
+Routes --> Access : Depends()
+Access --> Domain : authorised business logic
+Access --> Retrieval : authorised search
+Routes --> Logs : every request
+Routes --> Schemas : request/response
+
+Domain --> DomainDB : transactional SQL
+Retrieval --> FTS : websearch_to_tsquery
+Retrieval --> Vectors : pgvector cosine
+Retrieval --> Ollama : POST /api/embed
+
+Worker --> Queue : claim / complete / retry
+Worker --> Heartbeat : lease + status
+Worker --> Vectors : upsert chunks
+Worker --> Ollama : /api/embed + /api/chat
+Worker --> InferenceAudit : persist explanations
+
+Ready --> DB : schema + queue + heartbeat
+Ready --> Ollama : GET /api/tags + required models
+Ready --> Queue : dead-letter count
+
+Migrator --> DB : advisory-locked upgrade
+
+legend right
+    |= Color |= Meaning |
+    | <#E8F5E4> | User-facing component |
+    | <#FDF0EB> | Data store |
+    | <#FFFFFF> | Runtime service |
+endlegend
+
+@enduml

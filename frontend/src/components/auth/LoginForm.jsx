@@ -49,21 +49,21 @@ export function LoginForm() {
     };
 
     return (
-        <div className="w-full max-w-md rounded-md border border-[--border] bg-white p-8 shadow-sm">
-            <div className="mb-6">
-                <h2 className="text-xl font-semibold text-[--black]">Sign in</h2>
-                <p className="mt-2 text-sm text-[--muted]">
+        <div className="login-form">
+            <div className="login-form__header">
+                <h2 className="login-form__title">Sign in</h2>
+                <p className="login-form__description">
                     Authorised staff only. Use your parliamentary employee credentials.
                 </p>
             </div>
 
             {errorMessage ? (
-                <div className="mb-4">
+                <div className="login-form__error">
                     <Toast variant="error" title="Authentication error" description={errorMessage} />
                 </div>
             ) : null}
 
-            <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
+            <form className="login-form__fields" onSubmit={handleSubmit(onSubmit)}>
                 <Input
                     id="employeeId"
                     label="Employee ID"
@@ -72,7 +72,7 @@ export function LoginForm() {
                     {...register("employeeId")}
                 />
 
-                <div className="relative">
+                <div className="login-form__password">
                     <Input
                         id="password"
                         label="Password"
@@ -84,7 +84,7 @@ export function LoginForm() {
                     <button
                         type="button"
                         onClick={() => setShowPassword((prev) => !prev)}
-                        className="absolute right-3 top-[2.1rem] text-[--muted] hover:text-[--black]"
+                        className="login-form__password-toggle"
                         tabIndex={-1}
                         aria-label={showPassword ? "Hide password" : "Show password"}
                     >

@@ -8,14 +8,29 @@ import { Badge } from "@/components/ui/Badge";
 import { Button, buttonStyles } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Input } from "@/components/ui/Input";
 import { Spinner } from "@/components/ui/Spinner";
 import { Textarea } from "@/components/ui/Textarea";
 import { Toast } from "@/components/ui/Toast";
+import { useAuthContext } from "@/context/AuthContext";
+import { hasPermission } from "@/lib/auth";
 import { normalizeSearchResult, normalizeSubmission } from "@/lib/records";
 import { formatDate, formatDateTime } from "@/lib/utils";
+import SimilarityEvidence from "@/components/ai/SimilarityEvidence";
+
+const statusVariantMap = {
+    Draft: "info",
+    Submitted: "info",
+    "Under Review": "pending",
+    Approved: "clear",
+    Rejected: "duplicate",
+    Scheduled: "reviewed",
+    Archived: "reviewed",
+};
 
 export default function ResultDetailPage() {
     const params = useParams();
+    const { user } = useAuthContext();
     const [submission, setSubmission] = useState(null);
     const [matches, setMatches] = useState([]);
     const [sessions, setSessions] = useState([]);
@@ -27,6 +42,14 @@ export default function ResultDetailPage() {
     const [error, setError] = useState(null);
     const [savedDecision, setSavedDecision] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [workflowNotes, setWorkflowNotes] = useState("");
+    const [workflowResult, setWorkflowResult] = useState(null);
+    const [workflowError, setWorkflowError] = useState(null);
+    const [isWorkflowSaving, setIsWorkflowSaving] = useState(false);
+    const [sittingDate, setSittingDate] = useState("");
+    const [scheduleResult, setScheduleResult] = useState(null);
+    const [scheduleError, setScheduleError] = useState(null);
+    const [isScheduling, setIsScheduling] = useState(false);
 
     const loadRecord = async () => {
         setIsLoading(true);
@@ -65,6 +88,13 @@ export default function ResultDetailPage() {
     }, [params.id]);
 
     const selectedMatch = useMemo(() => matches.find((item) => item.match.id === selectedMatchId), [matches, selectedMatchId]);
+    const workflowActions = [
+        ...(hasPermission(user, "approve_motion") ? [{ action: "Approve", variant: "primary" }] : []),
+        ...(hasPermission(user, "reject_submission") ? [{ action: "Reject", variant: "danger" }] : []),
+        ...(hasPermission(user, "request_changes") ? [{ action: "Request Changes", variant: "secondary" }] : []),
+    ];
+    const isWorkflowReviewable = submission?.status === "Under Review";
+    const canSchedule = hasPermission(user, "schedule_item") && submission?.status === "Approved";
 
     const recordDecision = async () => {
         setIsSaving(true);
@@ -84,7 +114,6 @@ export default function ResultDetailPage() {
                 throw new Error(data.message || "Could not record decision");
             }
             setHistory((current) => [data, ...current]);
-            setSubmission((current) => current ? { ...current, status: data.decision } : current);
             setNotes("");
             setSavedDecision(true);
         } catch (err) {
@@ -94,12 +123,62 @@ export default function ResultDetailPage() {
         }
     };
 
+    const recordWorkflowAction = async (action) => {
+        setIsWorkflowSaving(true);
+        setWorkflowError(null);
+        setWorkflowResult(null);
+        try {
+            const response = await fetch(`/api/submissions/${params.id}/workflow-review`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action, notes: workflowNotes || null }),
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.message || "Could not record workflow action");
+            }
+            setSubmission((current) => current ? { ...current, status: data.status } : current);
+            setWorkflowNotes("");
+            setWorkflowResult(data);
+        } catch (err) {
+            setWorkflowError(err.message || "Could not record workflow action");
+        } finally {
+            setIsWorkflowSaving(false);
+        }
+    };
+
+    const scheduleSubmission = async () => {
+        setIsScheduling(true);
+        setScheduleError(null);
+        try {
+            const response = await fetch(`/api/submissions/${params.id}/schedule`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ sitting_date: sittingDate }),
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.message || "Could not schedule submission");
+            }
+            setSubmission((current) => current ? {
+                ...current,
+                status: data.status,
+                sittingDate: data.sitting_date,
+            } : current);
+            setScheduleResult(data);
+        } catch (err) {
+            setScheduleError(err.message || "Could not schedule submission");
+        } finally {
+            setIsScheduling(false);
+        }
+    };
+
     if (isLoading) {
         return (<div>
           <PageHeader title="Result Record" description="Detailed submission review and historical similarity context."/>
-          <div className="rounded-md border border-[--border] bg-white px-6 py-10 text-center shadow-sm">
-            <Spinner className="mx-auto h-6 w-6"/>
-            <p className="mt-3 text-sm text-[--muted]">Loading record details...</p>
+          <div className="page-loading">
+            <Spinner className="page-loading__spinner"/>
+            <p className="page-loading__text">Loading record details...</p>
           </div>
         </div>);
     }
@@ -116,96 +195,150 @@ export default function ResultDetailPage() {
             Back to Submissions
           </Link>}/>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_360px]">
-        <div className="space-y-6">
-          <Card className="p-6">
-            <div className="flex flex-wrap items-center gap-2">
+      <div className="result-detail__layout">
+        <div className="result-detail__main">
+          <Card className="result-detail__summary">
+            <div className="result-detail__badges">
               <Badge variant={submission.type === "Question" ? "question" : "motion"}>{submission.type}</Badge>
-              <Badge variant={submission.status === "Duplicate" ? "duplicate" : submission.status === "Clear (New)" ? "clear" : "reviewed"}>{submission.status}</Badge>
+              <Badge variant={statusVariantMap[submission.status] || "info"}>{submission.status}</Badge>
             </div>
-            <h2 className="mt-4 text-xl font-semibold text-[--black]">{submission.subject}</h2>
-            <div className="mt-3 flex flex-wrap gap-4 text-sm text-[--muted]">
+            <h2 className="result-detail__subject">{submission.subject}</h2>
+            <div className="result-detail__meta">
               <span>Member: {submission.member}</span>
               <span>Date: {formatDate(submission.submittedAt)}</span>
               {submission.ministry ? <span>Ministry: {submission.ministry}</span> : null}
+              {submission.sittingDate ? <span>Sitting: {formatDate(submission.sittingDate)}</span> : null}
             </div>
-            <div className="mt-5 rounded-md border border-[--border] bg-[--bg] p-4 text-sm leading-6 text-[--black]">
+            <div className="result-detail__body">
               {submission.fullText}
             </div>
           </Card>
 
-          <section className="space-y-4">
+          <section className="result-detail__section">
             <div>
-              <h2 className="text-base font-medium text-[--black]">Previously Addressed Candidates</h2>
-              <p className="text-sm text-[--muted]">Ranked records found by BM25 search and pgvector similarity where embeddings are available.</p>
+              <h2 className="result-detail__section-title">Previously Addressed Candidates</h2>
+              <p className="result-detail__section-description">Ranked records found by PostgreSQL full-text search and compatible chunk-vector evidence.</p>
             </div>
             {matches.length === 0 ? (<EmptyState title="No similar records found" description="No historical candidates were returned for this record."/>) : (matches.map((result) => {
               const sessionName = sessions.find(s => s.id === result.match.sessionId)?.name || result.match.sessionId;
               return <ResultCard key={result.match.id} result={{...result, match: {...result.match, sessionName}}} expandable initiallyExpanded={result.rank === 1}/>
             }))}
+
+            {matches.length > 0 && submission && (
+              <SimilarityEvidence
+                queryText={`${submission.subject}\n${submission.fullText}`}
+                matches={matches}
+              />
+            )}
           </section>
 
-          <section className="space-y-4">
+          <section className="result-detail__section">
             <div>
-              <h2 className="text-base font-medium text-[--black]">Review History</h2>
-              <p className="text-sm text-[--muted]">Recorded decisions for this record.</p>
+              <h2 className="result-detail__section-title">Review History</h2>
+              <p className="result-detail__section-description">Recorded similarity classifications for this record.</p>
             </div>
 
-            <Card className="divide-y divide-[--border]">
-              {history.length === 0 ? (<div className="px-5 py-6 text-sm text-[--muted]">No decisions have been recorded yet.</div>) : history.map((entry) => (<div key={entry.id} className="px-5 py-4">
-                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <Card className="result-detail__history">
+              {history.length === 0 ? (<div className="result-detail__history-empty">No decisions have been recorded yet.</div>) : history.map((entry) => (<div key={entry.id} className="result-detail__history-entry">
+                    <div className="result-detail__history-row">
                       <div>
-                        <p className="font-medium text-[--black]">{entry.decision}</p>
-                        <p className="mt-1 text-sm text-[--muted]">{entry.notes || "No decision notes captured."}</p>
+                        <p className="result-detail__history-decision">{entry.decision}</p>
+                        <p className="result-detail__history-notes">{entry.notes || "No decision notes captured."}</p>
                       </div>
-                      <p className="text-xs text-[--muted]">{entry.reviewer_name || "Reviewer"} • {formatDateTime(entry.created_at)}</p>
+                      <p className="result-detail__history-date">{entry.reviewer_name || "Reviewer"} • {formatDateTime(entry.created_at)}</p>
                     </div>
                   </div>))}
             </Card>
           </section>
         </div>
 
-        <div className="space-y-4">
-          <Card className="p-5">
-            <h2 className="text-base font-medium text-[--black]">Clerk Decision Panel</h2>
-            <p className="mt-1 text-sm text-[--muted]">Record the review outcome and connect it to the closest historical record when relevant.</p>
+        <div className="result-detail__aside">
+          {canSchedule || scheduleResult ? (<Card className="result-detail__panel">
+            <h2 className="result-detail__panel-title">Schedule Sitting</h2>
+            <p className="result-detail__panel-description">Assign this approved item to a specific sitting date.</p>
+            {canSchedule ? (<>
+              <div className="result-detail__panel-field">
+                <Input type="date" label="Sitting Date" value={sittingDate} onChange={(event) => setSittingDate(event.target.value)}/>
+              </div>
+              <div className="result-detail__panel-field">
+                <Button fullWidth onClick={scheduleSubmission} disabled={isScheduling || !sittingDate}>
+                  {isScheduling ? "Scheduling..." : "Schedule Item"}
+                </Button>
+              </div>
+            </>) : null}
+            {scheduleResult ? (<div className="result-detail__panel-field">
+              <Toast variant="success" title="Item scheduled" description={`Scheduled for ${formatDate(scheduleResult.sitting_date)}.`}/>
+            </div>) : null}
+            {scheduleError ? (<div className="result-detail__panel-field">
+              <Toast variant="error" title="Scheduling error" description={scheduleError}/>
+            </div>) : null}
+          </Card>) : null}
 
-            <fieldset className="mt-5 space-y-3">
-              <legend className="text-sm font-medium text-[--black]">Decision</legend>
-              {["Clear (New)", "Duplicate", "Substantially Similar"].map((option) => (<label key={option} className="flex items-center gap-2 rounded-md border border-[--border] bg-[--bg] px-3 py-2 text-sm">
-                  <input type="radio" name="decision" className="h-4 w-4 accent-[--primary]" checked={decision === option} onChange={() => setDecision(option)}/>
+          {workflowActions.length > 0 ? (<Card className="result-detail__panel">
+            <h2 className="result-detail__panel-title">Workflow Decision</h2>
+            <p className="result-detail__panel-description">Approve, reject, or return this submission to Draft for changes.</p>
+
+            {isWorkflowReviewable ? (<>
+              <div className="result-detail__panel-field">
+                <Textarea label="Workflow Notes" value={workflowNotes} onChange={(event) => setWorkflowNotes(event.target.value)} placeholder="Add guidance or reasons for this workflow decision."/>
+              </div>
+              <div className="result-detail__workflow-actions">
+                {workflowActions.map(({ action, variant }) => (
+                  <Button key={action} variant={variant} fullWidth onClick={() => recordWorkflowAction(action)} disabled={isWorkflowSaving}>
+                    {isWorkflowSaving ? "Saving..." : action}
+                  </Button>
+                ))}
+              </div>
+            </>) : (<p className="result-detail__workflow-unavailable">Workflow actions are unavailable while this item is {submission.status}.</p>)}
+
+            {workflowResult ? (<div className="result-detail__panel-field">
+              <Toast variant="success" title={`${workflowResult.action} recorded`} description={`The submission is now ${workflowResult.status}.`}/>
+            </div>) : null}
+            {workflowError ? (<div className="result-detail__panel-field">
+              <Toast variant="error" title="Workflow error" description={workflowError}/>
+            </div>) : null}
+          </Card>) : null}
+
+          {hasPermission(user, "review_submission") ? (<Card className="result-detail__panel">
+            <h2 className="result-detail__panel-title">Similarity Classification</h2>
+            <p className="result-detail__panel-description">Classify historical similarity without changing the submission workflow status.</p>
+
+            <fieldset className="result-detail__decisions">
+              <legend className="result-detail__legend">Decision</legend>
+              {["Clear (New)", "Duplicate", "Substantially Similar"].map((option) => (<label key={option} className="result-detail__decision">
+                  <input type="radio" name="decision" className="result-detail__radio" checked={decision === option} onChange={() => setDecision(option)}/>
                   <span>{option}</span>
                 </label>))}
             </fieldset>
 
-            {decision !== "Clear (New)" ? (<div className="mt-4">
-              <label className="mb-2 block text-sm font-medium text-[--black]">Related historical record</label>
-              <select className="w-full rounded-md border border-[--border] bg-white px-3 py-2 text-sm" value={selectedMatchId} onChange={(event) => setSelectedMatchId(event.target.value)}>
+            {decision !== "Clear (New)" ? (<div className="result-detail__related">
+              <label className="result-detail__related-label">Related historical record</label>
+              <select className="result-detail__select" value={selectedMatchId} onChange={(event) => setSelectedMatchId(event.target.value)}>
                 <option value="">Select a candidate</option>
                 {matches.map((result) => (<option key={result.match.id} value={result.match.id}>
                   #{result.rank} {result.match.title}
                 </option>))}
               </select>
-              {selectedMatch ? <p className="mt-2 text-xs text-[--muted]">Selected similarity: {selectedMatch.match.score}%</p> : null}
+              {selectedMatch ? <p className="result-detail__selected-score">Selected candidate ranking score: {selectedMatch.match.score}%</p> : null}
             </div>) : null}
 
-            <div className="mt-4">
+            <div className="result-detail__panel-field">
               <Textarea label="Clerk Notes" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Add reasoning, context or follow-up guidance."/>
             </div>
 
-            {savedDecision ? (<div className="mt-4">
+            {savedDecision ? (<div className="result-detail__panel-field">
                 <Toast variant="success" title="Decision recorded" description="The review decision was saved to the database."/>
               </div>) : null}
-            {error ? (<div className="mt-4">
+            {error ? (<div className="result-detail__panel-field">
                 <Toast variant="error" title="Review error" description={error}/>
               </div>) : null}
 
-            <div className="mt-4">
+            <div className="result-detail__panel-field">
               <Button fullWidth onClick={recordDecision} disabled={isSaving || (decision !== "Clear (New)" && !selectedMatchId)}>
                 {isSaving ? "Saving..." : "Record Decision"}
               </Button>
             </div>
-          </Card>
+          </Card>) : null}
         </div>
       </div>
     </div>);

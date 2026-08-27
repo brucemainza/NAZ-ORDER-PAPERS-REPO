@@ -17,15 +17,18 @@ export async function verifyAuthToken(token) {
 }
 
 export function getAuthCookieOptions() {
+    const secureDefault = process.env.NODE_ENV === "production";
+    const explicitSecure = process.env.SECURE_COOKIES;
+    const secure = explicitSecure !== undefined ? explicitSecure === "true" : secureDefault;
     return {
         httpOnly: true,
         sameSite: "lax",
-        secure: process.env.NODE_ENV === "production",
+        secure,
         path: "/",
         maxAge: 60 * 60 * 8,
     };
 }
 
-export function hasAdminAccess(role) {
-    return role === "Admin";
+export function hasPermission(user, permission) {
+    return user?.permissions?.includes(permission) ?? false;
 }
