@@ -16,6 +16,11 @@ class EmbeddingProvider(ABC):
     def model_name(self) -> str:
         """Human-readable model identifier for reproducibility."""
 
+    @property
+    @abstractmethod
+    def model_digest(self) -> str:
+        """Exact content digest of the loaded model, for cache invalidation."""
+
     @abstractmethod
     def embed_query(self, text: str) -> list[float]:
         """Embed a single query string."""

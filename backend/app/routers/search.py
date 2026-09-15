@@ -9,7 +9,12 @@ from app.ai.service import AISimilarityService
 from app.database import get_db
 from app.deps import add_audit_log, get_current_user, request_ip
 from app.models import ParliamentaryRecord, SearchLog, User
-from app.schemas.search import SearchRequest, SearchResponse, SearchResultOut
+from app.schemas.search import (
+    SearchRecordOut,
+    SearchRequest,
+    SearchResponse,
+    SearchResultOut,
+)
 
 router = APIRouter(prefix="/search", tags=["search"])
 
@@ -79,7 +84,7 @@ def _keyword_search(
             rank=search.offset + index + 1,
             score=round(match.score * 100, 2),
             matched_terms=match.metadata.get("matched_terms", []),
-            record=records[match.record_id],
+            record=SearchRecordOut.model_validate(records[match.record_id]),
         )
         for index, match in enumerate(ranked_matches)
         if match.record_id in records
@@ -144,7 +149,7 @@ def _hybrid_search(
             rank=search.offset + index + 1,
             score=round(match.score * 100, 2),
             matched_terms=match.metadata.get("matched_terms", ["semantic"]),
-            record=records[match.record_id],
+            record=SearchRecordOut.model_validate(records[match.record_id]),
         )
         for index, match in enumerate(response.results)
         if match.record_id in records

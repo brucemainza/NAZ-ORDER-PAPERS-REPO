@@ -8,6 +8,7 @@ from app.database import get_db
 from app.deps import get_current_user
 from app.models import ParliamentaryRecord, User
 from app.schemas.order_paper import OrderPaperOut, OrderPaperSection
+from app.schemas.submission import SubmissionRecordOut
 from app.services.submission_status import SubmissionStatus
 
 router = APIRouter(prefix="/order-papers", tags=["order-papers"])
@@ -37,12 +38,12 @@ def generate_order_paper(
         OrderPaperSection(
             heading="QUESTIONS",
             item_type="Question",
-            items=questions,
+            items=[SubmissionRecordOut.model_validate(record) for record in questions],
         ),
         OrderPaperSection(
             heading="NOTICES OF MOTION",
             item_type="Motion",
-            items=motions,
+            items=[SubmissionRecordOut.model_validate(record) for record in motions],
         ),
     ]
     return OrderPaperOut(

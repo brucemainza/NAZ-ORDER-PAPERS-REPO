@@ -1,4 +1,5 @@
 from hashlib import sha256
+from typing import Literal
 from uuid import UUID
 
 from fastapi import (
@@ -45,6 +46,14 @@ from app.services.transactions import (
 )
 
 router = APIRouter(prefix="/ai", tags=["ai"])
+
+ExplanationStatus = Literal["queued", "running", "completed", "failed"]
+
+
+def _explanation_status(outcome: str) -> ExplanationStatus:
+    if outcome not in ("queued", "running", "completed", "failed"):
+        raise ValueError(f"unexpected AI inference run outcome: {outcome!r}")
+    return outcome
 
 
 def _visible_evidence_records(
@@ -189,7 +198,7 @@ def create_explanation(
     result = AIExplanation.model_validate(run.result) if run.result else None
     return ExplanationJobResponse(
         run_id=run.id,
-        status=run.outcome,
+        status=_explanation_status(run.outcome),
         cached=cached,
         result=result,
         error=run.error,
@@ -211,7 +220,7 @@ def get_explanation(
     _visible_evidence_records(db, user, list(run.evidence_ids or []))
     return ExplanationJobResponse(
         run_id=run.id,
-        status=run.outcome,
+        status=_explanation_status(run.outcome),
         cached=run.outcome == "completed",
         result=AIExplanation.model_validate(run.result) if run.result else None,
         error=run.error,

@@ -7,10 +7,14 @@ from io import BytesIO
 import multiprocessing
 import os
 from pathlib import Path, PurePosixPath
-import resource
 import tempfile
-from typing import BinaryIO, Iterator
+from typing import BinaryIO, Iterator, TypedDict
 from zipfile import BadZipFile, ZipFile
+
+try:
+    import resource
+except ImportError:  # pragma: no cover - resource is POSIX-only (no-op on Windows)
+    resource = None  # type: ignore[assignment]
 
 try:
     from docx import Document as DocxDocument
@@ -42,6 +46,12 @@ EXPECTED_MIME_TYPES = {
     "docx": {DOCX_MIME},
     "txt": {"text/plain"},
 }
+
+
+class ParsedDocument(TypedDict):
+    item_type: str | None
+    subject: str
+    full_text: str
 
 
 class DocumentParsingTimeout(ValueError):
@@ -208,7 +218,7 @@ def _parse_source(
     filename: str | None,
     content_type: str | None,
     item_type: str | None,
-) -> dict[str, str | None]:
+) -> ParsedDocument:
     fmt = _detect_format(filename)
     _validate_declared_mime(fmt, content_type)
     _validate_magic(source, fmt)
@@ -235,7 +245,7 @@ def parse_uploaded_document(
     filename: str | None,
     item_type: str | None = None,
     content_type: str | None = None,
-) -> dict[str, str | None]:
+) -> ParsedDocument:
     """Compatibility entry point for already-bounded in-memory content."""
 
     if len(content) > MAX_UPLOAD_BYTES:
@@ -257,7 +267,7 @@ def parse_uploaded_document_path(
     filename: str | None,
     content_type: str | None,
     item_type: str | None,
-) -> dict[str, str | None]:
+) -> ParsedDocument:
     with Path(path).open("rb") as source:
         return _parse_source(
             source,
@@ -303,6 +313,8 @@ def bounded_upload_file(
 
 
 def _apply_resource_limits(memory_mb: int, timeout_seconds: float) -> None:
+    if resource is None:  # pragma: no cover - platform-dependent
+        return
     memory_bytes = memory_mb * 1024 * 1024
     resource.setrlimit(resource.RLIMIT_AS, (memory_bytes, memory_bytes))
     cpu_seconds = max(1, int(timeout_seconds) + 1)
@@ -328,7 +340,7 @@ def parse_document_safely(
     item_type: str | None,
     timeout_seconds: float = DEFAULT_PARSE_TIMEOUT_SECONDS,
     memory_mb: int = DEFAULT_PARSE_MEMORY_MB,
-) -> dict[str, str | None]:
+) -> ParsedDocument:
     """Parse in a killable process with wall-clock, CPU and memory limits."""
 
     context = multiprocessing.get_context("spawn")

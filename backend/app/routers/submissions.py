@@ -21,10 +21,11 @@ from app.config import get_settings
 from app.deps import add_audit_log, get_current_user, request_ip, require_permission
 from app.jobs.queue import enqueue_outbox_job
 from app.models import ParliamentaryRecord, ParliamentarySession, User
-from app.schemas.search import SearchResultOut
+from app.schemas.search import SearchRecordOut, SearchResultOut
 from app.schemas.similarity import (
     SimilarityCheckRequest,
     SimilarityCheckResponse,
+    SimilarityMatchOut,
 )
 from app.schemas.submission import (
     DocumentUploadResponse,
@@ -186,23 +187,29 @@ def check_submission_similarity(
             item_type=check.item_type,
             current_session_id=check.session_id,
         )
-        addressed_matches = result_formatter.format(
-            [
-                DuplicateMatch(
-                    source_id=match.source_id,
-                    score=match.score,
-                    match_type="previously_addressed",
-                    ranking_score=match.score,
-                    cosine_similarity=match.score,
-                )
-                for match in addressed_result.matches
-            ]
-        )
+        addressed_matches = [
+            SimilarityMatchOut.model_validate(formatted)
+            for formatted in result_formatter.format(
+                [
+                    DuplicateMatch(
+                        source_id=match.source_id,
+                        score=match.score,
+                        match_type="previously_addressed",
+                        ranking_score=match.score,
+                        cosine_similarity=match.score,
+                    )
+                    for match in addressed_result.matches
+                ]
+            )
+        ]
     return SimilarityCheckResponse(
         possible_duplicate=result.is_duplicate,
         threshold=result.threshold,
         threshold_version=result.threshold_version,
-        matches=result_formatter.format(result.matches),
+        matches=[
+            SimilarityMatchOut.model_validate(match)
+            for match in result_formatter.format(result.matches)
+        ],
         previously_addressed=addressed_matches,
     )
 
@@ -337,24 +344,30 @@ def create_submission(
         item_type=submission.item_type,
         current_session_id=submission.session_id,
     )
-    addressed_matches = result_formatter.format(
-        [
-            DuplicateMatch(
-                source_id=match.source_id,
-                score=match.score,
-                match_type="previously_addressed",
-                ranking_score=match.score,
-                cosine_similarity=match.score,
-            )
-            for match in addressed_result.matches
-        ]
-    )
+    addressed_matches = [
+        SimilarityMatchOut.model_validate(formatted)
+        for formatted in result_formatter.format(
+            [
+                DuplicateMatch(
+                    source_id=match.source_id,
+                    score=match.score,
+                    match_type="previously_addressed",
+                    ranking_score=match.score,
+                    cosine_similarity=match.score,
+                )
+                for match in addressed_result.matches
+            ]
+        )
+    ]
     if duplicate_result.is_duplicate and not submission.confirm_duplicate:
         check_response = SimilarityCheckResponse(
             possible_duplicate=True,
             threshold=duplicate_result.threshold,
             threshold_version=duplicate_result.threshold_version,
-            matches=result_formatter.format(duplicate_result.matches),
+            matches=[
+                SimilarityMatchOut.model_validate(match)
+                for match in result_formatter.format(duplicate_result.matches)
+            ],
             previously_addressed=addressed_matches,
         )
         db.rollback()
@@ -428,13 +441,13 @@ def create_submission(
     )
     candidates = find_previously_addressed_candidates(db, record=record, user=user, limit=5)
     response = SubmissionResponse(
-        record=record,
+        record=SubmissionRecordOut.model_validate(record),
         candidates=[
             SearchResultOut(
                 rank=index + 1,
                 score=match.score,
                 matched_terms=match.matched_terms,
-                record=match.record,
+                record=SearchRecordOut.model_validate(match.record),
             )
             for index, match in enumerate(candidates)
         ],

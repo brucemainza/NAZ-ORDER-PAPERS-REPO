@@ -14,6 +14,11 @@ class EmbeddingGenerator(ABC):
     def dimension(self) -> int:
         """Return the fixed number of values produced by ``embed``."""
 
+    @property
+    @abstractmethod
+    def model_name(self) -> str:
+        """Human-readable model identifier for reproducibility."""
+
     @abstractmethod
     def embed(self, text: str) -> list[float]:
         """Return a deterministic, fixed-dimension vector for ``text``."""
@@ -36,6 +41,10 @@ class TokenHashEmbeddingGenerator(EmbeddingGenerator):
     @property
     def dimension(self) -> int:
         return self._dimension
+
+    @property
+    def model_name(self) -> str:
+        return "naz-embed-v1"
 
     def embed(self, text: str) -> list[float]:
         vector = [0.0] * self.dimension
