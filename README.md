@@ -9,6 +9,7 @@ retrieval platform for the National Assembly of Zambia.
 - [Graphical system architecture](docs/system-architecture.md)
 - [File-by-file application guide](docs/file-guide.md)
 - [TDD implementation and verification report](docs/implementation-report.md)
+- [Deploy-blocker and duplicate-submission fixes report](docs/deploy-and-duplicate-fixes-report.md)
 - [Pre-implementation baseline](docs/implementation-baseline.md)
 - [Production AI implementation (offline HTML)](docs/ai-explanation.html)
 
@@ -207,8 +208,12 @@ Blank/legacy unsupported statuses are normalized to `Archived`.
 
 - Generated Order Papers are structured JSON, not official PDF/print documents.
 - Ended-session archival runs at API startup rather than in a continuous worker.
-- Users and Sessions management pages currently change local demo state; persistent
-  CRUD APIs are not implemented.
+- The Users management page currently changes local demo state; persistent CRUD
+  APIs are not implemented. Sessions supports live activate/close/delete via the
+  API, but session creation is still local-only.
 - Authentication hardening remains explicitly out of scope and its frozen PyJWT
   dependency is a documented residual go-live risk.
 - Rate limiting, MFA, and password-reset facilities are not included.
+- Formatting (bold/italic/tables/lists) from the original DOCX/PDF is not
+  recoverable in submission text; it's stripped during parsing and only
+  paragraph breaks are preserved.
