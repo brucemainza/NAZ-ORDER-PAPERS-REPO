@@ -10,6 +10,16 @@ from app.models import ParliamentaryRecord
 from app.similarity.duplicate_detection import DuplicateMatch
 
 
+SNIPPET_MAX_CHARS = 240
+
+
+def _build_snippet(full_text: str) -> str:
+    collapsed = " ".join(full_text.split())
+    if len(collapsed) <= SNIPPET_MAX_CHARS:
+        return collapsed
+    return collapsed[:SNIPPET_MAX_CHARS].rstrip() + "..."
+
+
 @dataclass(frozen=True, slots=True)
 class SimilarityDisplayMatch:
     rank: int
@@ -18,6 +28,8 @@ class SimilarityDisplayMatch:
     session: str
     date: date
     member_name: str
+    subject: str
+    snippet: str
     source_record: UUID
     source_id: UUID
     ranking_score: float
@@ -82,6 +94,8 @@ class DatabaseSimilarityResultFormatter(SimilarityResultFormatter):
                     session=record.session.code,
                     date=record_date,
                     member_name=record.member,
+                    subject=record.subject,
+                    snippet=_build_snippet(record.full_text),
                     source_record=record.id,
                     source_id=record.id,
                     ranking_score=(

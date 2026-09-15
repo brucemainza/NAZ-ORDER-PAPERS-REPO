@@ -28,6 +28,13 @@ def upgrade() -> None:
         """
     )
     op.execute(
+        """
+        UPDATE parliamentary_records
+        SET status = 'Archived'
+        WHERE status = 'Historical'
+        """
+    )
+    op.execute(
         f"""
         ALTER TABLE parliamentary_records
         ADD CONSTRAINT parliamentary_records_status_check

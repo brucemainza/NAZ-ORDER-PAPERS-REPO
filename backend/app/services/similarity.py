@@ -12,7 +12,8 @@ from app.models import ParliamentaryRecord
 
 
 class CandidateRecord(Protocol):
-    id: object
+    @property
+    def id(self) -> object: ...
 
 
 @dataclass

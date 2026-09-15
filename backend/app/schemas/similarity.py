@@ -26,6 +26,8 @@ class SimilarityMatchOut(BaseModel):
     session: str
     date: date
     member_name: str
+    subject: str
+    snippet: str
     source_record: UUID
     source_id: UUID
     ranking_score: float

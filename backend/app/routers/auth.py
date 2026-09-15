@@ -95,7 +95,10 @@ def login(request: LoginRequest, req: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/me", response_model=UserOut)
-def me(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
+def me(
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    db: Session = Depends(get_db),
+):
     if not credentials:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
@@ -103,8 +106,18 @@ def me(credentials: HTTPAuthorizationCredentials = Depends(security), db: Sessio
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid authentication credentials")
 
-    user_id = UUID(payload.get("sub"))
+    subject = payload.get("sub")
     jti = payload.get("jti")
+    if not isinstance(subject, str) or not isinstance(jti, str):
+        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+
+    try:
+        user_id = UUID(subject)
+    except ValueError as error:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid authentication credentials",
+        ) from error
 
     session_result = db.execute(
         select(UserSession).where(
@@ -130,20 +143,30 @@ def me(credentials: HTTPAuthorizationCredentials = Depends(security), db: Sessio
 
 
 @router.post("/logout")
-def logout(req: Request, credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
+def logout(
+    req: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    db: Session = Depends(get_db),
+):
     if credentials:
         payload = verify_access_token(credentials.credentials)
         if payload:
             user_id = payload.get("sub")
             jti = payload.get("jti")
-            if jti:
+            if isinstance(jti, str):
                 result = db.execute(select(UserSession).where(UserSession.jti == jti))
                 session = result.scalars().first()
                 if session:
+                    audit_user_id: UUID | None = None
+                    if isinstance(user_id, str):
+                        try:
+                            audit_user_id = UUID(user_id)
+                        except ValueError:
+                            pass
                     session.revoked_at = datetime.now(timezone.utc)
                     add_audit_log(
                         db,
-                        user_id=UUID(user_id) if user_id else None,
+                        user_id=audit_user_id,
                         action="logout",
                         entity_type="auth",
                         entity_id=str(session.id),

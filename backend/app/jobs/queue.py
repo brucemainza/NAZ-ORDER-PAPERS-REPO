@@ -52,7 +52,10 @@ def enqueue_job(
     )
     if resolved_id is None:  # pragma: no cover - defensive database invariant
         raise RuntimeError("could not resolve enqueued background job")
-    return db.get(BackgroundJob, resolved_id)
+    job = db.get(BackgroundJob, resolved_id)
+    if job is None:  # pragma: no cover - defensive database invariant
+        raise RuntimeError("could not resolve enqueued background job")
+    return job
 
 
 def enqueue_outbox_job(
@@ -139,13 +142,14 @@ def requeue_dead_letter_job(
 
 
 def queue_snapshot(db: Session) -> QueueSnapshot:
-    counts = dict(
-        db.execute(
+    counts = {
+        status: count
+        for status, count in db.execute(
             select(BackgroundJob.status, func.count(BackgroundJob.id)).group_by(
                 BackgroundJob.status
             )
         ).all()
-    )
+    }
     oldest = db.scalar(
         select(func.min(BackgroundJob.created_at)).where(
             BackgroundJob.status.in_(("pending", "retry"))

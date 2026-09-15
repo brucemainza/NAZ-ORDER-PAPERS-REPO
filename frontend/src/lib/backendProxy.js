@@ -12,7 +12,7 @@ export function authHeaders(extra = {}) {
     };
 }
 
-function backendErrorMessage(data) {
+export function backendErrorMessage(data) {
     if (Array.isArray(data.detail)) {
         return data.detail
             .map((error) => {

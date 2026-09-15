@@ -9,7 +9,7 @@ from app.database import get_db
 from app.deps import add_audit_log, get_current_user, request_ip
 from app.models import ParliamentaryRecord, ParliamentarySession, User
 from app.schemas.record import RecordDetailOut, RecordListOut
-from app.schemas.search import SearchResultOut
+from app.schemas.search import SearchRecordOut, SearchResultOut
 from app.services.record_visibility import (
     can_view_record,
     restrict_archive_visibility,
@@ -175,7 +175,7 @@ def similar_records(
             rank=index + 1,
             score=match.score,
             matched_terms=match.matched_terms,
-            record=match.record,
+            record=SearchRecordOut.model_validate(match.record),
         )
         for index, match in enumerate(candidates)
     ]
