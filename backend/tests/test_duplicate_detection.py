@@ -14,6 +14,7 @@ from app.models import (
     UserSession,
 )
 from app.similarity.base import SimilarityBackend, SimilarityMatch
+from app.similarity.embeddings import TokenHashEmbeddingGenerator
 
 
 def _load_duplicate_detection_module():
@@ -245,6 +246,9 @@ def test_duplicate_confirmation_override_allows_submission(
         FakeSimilarityBackend(
             [SimilarityMatch(source_id=existing.id, score=0.98)]
         )
+    )
+    app.dependency_overrides[dependencies.get_embedding_generator] = lambda: (
+        TokenHashEmbeddingGenerator(dimension=768)
     )
     payload = _payload(session, confirm_duplicate=True)
 
