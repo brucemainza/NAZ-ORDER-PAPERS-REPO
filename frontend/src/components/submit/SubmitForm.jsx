@@ -2,10 +2,12 @@
 import { useCallback, useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { UploadCloud } from "lucide-react";
+import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
 import { Spinner } from "@/components/ui/Spinner";
 import { Textarea } from "@/components/ui/Textarea";
@@ -43,6 +45,7 @@ export function SubmitForm({ sessions, itemTypes }) {
     const { error, isSubmitting, submitSubmission } = useSubmit();
     const { isUploading, uploadError, uploadDocument, clearUploadError } = useDocumentUpload();
     const [dragActive, setDragActive] = useState(false);
+    const [duplicateInfo, setDuplicateInfo] = useState(null);
     const fileInputRef = useRef(null);
 
     const {
@@ -118,7 +121,7 @@ export function SubmitForm({ sessions, itemTypes }) {
     );
 
     const onSubmit = async (values) => {
-        await submitSubmission({
+        const payload = {
             type: values.type,
             sessionId: values.sessionId,
             member: values.member,
@@ -126,8 +129,22 @@ export function SubmitForm({ sessions, itemTypes }) {
             answerType: values.type === "Question" ? values.answerType : undefined,
             subject: values.subject,
             fullText: values.fullText,
-        });
+        };
+        const result = await submitSubmission(payload);
+        if (result?.duplicate) {
+            setDuplicateInfo({ payload, duplicate: result.duplicate });
+        }
     };
+
+    const closeDuplicateModal = useCallback(() => setDuplicateInfo(null), []);
+
+    const submitAnyway = useCallback(async () => {
+        if (!duplicateInfo) return;
+        const result = await submitSubmission(duplicateInfo.payload, { confirmDuplicate: true });
+        if (!result?.duplicate) {
+            setDuplicateInfo(null);
+        }
+    }, [duplicateInfo, submitSubmission]);
 
     const displayError = error || uploadError;
 
@@ -267,6 +284,47 @@ export function SubmitForm({ sessions, itemTypes }) {
                     )}
                 </Button>
             </div>
+
+            <Modal
+                isOpen={Boolean(duplicateInfo)}
+                onClose={closeDuplicateModal}
+                title="Possible duplicate detected"
+                description="This submission closely matches records already in the system. Review the matches below before continuing."
+                footer={
+                    <>
+                        <Button variant="secondary" onClick={closeDuplicateModal} disabled={isSubmitting}>
+                            Cancel
+                        </Button>
+                        <Button onClick={submitAnyway} disabled={isSubmitting}>
+                            {isSubmitting ? "Submitting..." : "Submit anyway"}
+                        </Button>
+                    </>
+                }
+            >
+                <div className="submit-form__duplicate-matches">
+                    {(duplicateInfo?.duplicate.matches ?? []).map((match) => (
+                        <div key={`${match.source_record}-${match.rank}`} className="submit-form__duplicate-match">
+                            <div className="submit-form__duplicate-match-header">
+                                <span className="submit-form__duplicate-match-subject">{match.subject}</span>
+                                <span className="submit-form__duplicate-match-score">{Math.round(match.score * 100)}% match</span>
+                            </div>
+                            <div className="submit-form__duplicate-match-meta">
+                                <span>Session: {match.session}</span>
+                                <span>Member: {match.member_name}</span>
+                            </div>
+                            <p className="submit-form__duplicate-match-snippet">{match.snippet}</p>
+                            <Link
+                                href={`/results/${match.source_record}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="submit-form__duplicate-match-link"
+                            >
+                                View document
+                            </Link>
+                        </div>
+                    ))}
+                </div>
+            </Modal>
         </div>
     );
 }

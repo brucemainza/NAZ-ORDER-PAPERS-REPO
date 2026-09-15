@@ -196,6 +196,8 @@ def test_similarity_check_api_returns_ranked_source_context(
         "session": second_session.code,
         "date": "2025-05-02",
         "member_name": "Hon. Second Member",
+        "subject": "Second historical matter",
+        "snippet": "Second historical matter with sufficient fixture content for validation.",
         "source_record": str(higher.id),
         "source_id": str(higher.id),
         "ranking_score": 0.99,
