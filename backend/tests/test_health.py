@@ -109,7 +109,7 @@ def test_readiness_probe_surfaces_ollama_connection_failure(monkeypatch):
 
     assert probe._ai() == {
         "status": "unavailable",
-        "required": True,
+        "required": False,
         "base_url": "http://ollama:11434",
         "error": "Ollama is unreachable",
     }
