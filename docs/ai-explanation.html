@@ -492,7 +492,8 @@
               <tr><td><code>DUPLICATE_SIMILARITY_THRESHOLD</code></td><td>0.95</td><td>Candidate threshold; deployment requires measured 95% precision.</td></tr>
               <tr><td><code>AUTOMATIC_LINK_SIMILARITY_THRESHOLD</code></td><td>0.99</td><td>Automatic-link candidate threshold; deployment requires measured 98% precision.</td></tr>
               <tr><td><code>PREVIOUSLY_ADDRESSED_THRESHOLD</code></td><td>0.72</td><td>Broader historical-topic candidate threshold.</td></tr>
-              <tr><td><code>READINESS_AI_TIMEOUT_SECONDS</code></td><td>1</td><td>Fast mandatory Ollama readiness check.</td></tr>
+              <tr><td><code>READINESS_AI_TIMEOUT_SECONDS</code></td><td>1</td><td>Fast Ollama readiness check timeout.</td></tr>
+              <tr><td><code>AI_REQUIRED</code></td><td>false</td><td>Whether Ollama must be healthy for <code>/readyz</code> to report ready; disabled by default so deployments without Ollama provisioned still pass readiness.</td></tr>
               <tr><td><code>WORKER_STALE_SECONDS</code></td><td>30</td><td>Heartbeat age after which worker status is stale.</td></tr>
             </tbody>
           </table>
