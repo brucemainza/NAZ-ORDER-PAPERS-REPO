@@ -131,7 +131,7 @@ cd backend
 .venv/Scripts/python -m pytest -q
 ```
 
-Result: **227 passed, 0 failed** (last full run, against the live
+Result: **223 passed, 0 failed** (last full run, against the live
 Postgres/pgvector test database).
 
 ### 5.2 Frontend build
