@@ -48,6 +48,7 @@ class Settings:
     log_json: bool
     worker_stale_seconds: int
     readiness_ai_timeout_seconds: float
+    ai_required: bool
 
     def __init__(self) -> None:
         self.database_url = getenv(
@@ -141,6 +142,12 @@ class Settings:
         self.readiness_ai_timeout_seconds = float(
             getenv("READINESS_AI_TIMEOUT_SECONDS", "1")
         )
+        self.ai_required = getenv("AI_REQUIRED", "false").strip().casefold() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
 
 
 @lru_cache

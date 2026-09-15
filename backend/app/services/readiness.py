@@ -75,29 +75,29 @@ class ReadinessProbe:
                 model.get("name") or model.get("model")
                 for model in response.json().get("models", [])
             }
-            required_models = {
-                self._settings.ollama_embedding_model,
-                self._settings.ollama_llm_model,
-            }
+            # ollama_llm_model (qwen) is intentionally left out of the required
+            # set for now — it isn't provisioned on all deployments and its
+            # absence shouldn't fail the embedding/semantic-search health check.
+            required_models = {self._settings.ollama_embedding_model}
             missing_models = sorted(required_models - models)
             if missing_models:
                 return {
                     "status": "unhealthy",
-                    "required": True,
+                    "required": self._settings.ai_required,
                     "base_url": base_url,
                     "error": "Required Ollama models are not loaded",
                     "missing_models": missing_models,
                 }
             return {
                 "status": "healthy",
-                "required": True,
+                "required": self._settings.ai_required,
                 "base_url": base_url,
                 "models": sorted(required_models),
             }
         except Exception:
             return {
                 "status": "unavailable",
-                "required": True,
+                "required": self._settings.ai_required,
                 "base_url": base_url,
                 "error": "Ollama is unreachable",
             }
@@ -148,9 +148,10 @@ class ReadinessProbe:
         database, schema, core_ready = self._database_and_schema()
         worker, queue = self._worker_and_queue(database["status"] == "healthy")
         ai = self._ai()
+        ai_ready = ai["status"] == "healthy" or not self._settings.ai_required
         ready = (
             core_ready
-            and ai["status"] == "healthy"
+            and ai_ready
             and queue.get("status") == "healthy"
         )
         return {
