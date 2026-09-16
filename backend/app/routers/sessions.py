@@ -7,8 +7,12 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.deps import add_audit_log, request_ip, require_permission
 from app.models import ParliamentarySession, User
-from app.schemas.session import SessionOut, SessionUpdate
-from app.services.transactions import DatabaseConflict, commit_transaction
+from app.schemas.session import SessionCreate, SessionOut, SessionUpdate
+from app.services.transactions import (
+    DatabaseConflict,
+    commit_transaction,
+    flush_transaction,
+)
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -19,6 +23,49 @@ def list_sessions(db: Session = Depends(get_db)) -> list[ParliamentarySession]:
         select(ParliamentarySession).order_by(ParliamentarySession.start_date.desc())
     )
     return list(result.scalars().all())
+
+
+@router.post("", response_model=SessionOut, status_code=201)
+def create_session(
+    payload: SessionCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("manage_sessions")),
+) -> ParliamentarySession:
+    session = ParliamentarySession(
+        code=payload.code,
+        name=payload.name,
+        start_date=payload.start_date,
+        end_date=payload.end_date,
+        status=payload.status,
+    )
+    db.add(session)
+    try:
+        flush_transaction(
+            db,
+            conflict_message="A session with that code already exists",
+        )
+    except DatabaseConflict as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+    add_audit_log(
+        db,
+        user_id=user.id,
+        action="session_create",
+        entity_type="parliamentary_session",
+        entity_id=str(session.id),
+        details=session.code,
+        ip_address=request_ip(request),
+    )
+    try:
+        commit_transaction(
+            db,
+            conflict_message="The session conflicts with another committed change",
+        )
+    except DatabaseConflict as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    db.refresh(session)
+    return session
 
 
 @router.patch("/{session_id}", response_model=SessionOut)
