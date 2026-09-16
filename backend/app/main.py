@@ -19,6 +19,7 @@ from app.routers import (
     reports,
     responses,
     reviews,
+    roles,
     search,
     scheduling,
     session_reports,
@@ -77,5 +78,6 @@ app.include_router(reports.router)
 app.include_router(responses.router)
 app.include_router(auth.router)
 app.include_router(users.router)
+app.include_router(roles.router)
 app.include_router(workflow_reviews.router)
 app.include_router(ai_router.router)
