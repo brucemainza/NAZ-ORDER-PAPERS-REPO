@@ -31,9 +31,7 @@ retrieval platform for the National Assembly of Zambia.
 - Permission-controlled archive list/detail/search.
 - PostgreSQL weighted full-text and versioned chunk-vector hybrid search with
   relevance context, structured filters, and lexical-only degradation.
-- Durable PostgreSQL worker processing for indexing and explanations.
-- Grounded local-Ollama explanations with evidence validation and mandatory human
-  review.
+- Durable PostgreSQL worker processing for indexing.
 - Reports, audit trail, and audit CSV export.
 - Plain CSS UI with desktop/mobile Playwright visual baselines.
 
@@ -42,7 +40,7 @@ retrieval platform for the National Assembly of Zambia.
 - Next.js 14 App Router, React 18, plain CSS.
 - FastAPI, Pydantic, SQLAlchemy 2, psycopg 3.
 - PostgreSQL 16 with pgvector.
-- Local Ollama embeddings and structured explanation generation.
+- Local Ollama embeddings (embeddinggemma) for hybrid semantic search.
 - bcrypt password hashing and HS256 JWTs.
 - Docker Compose.
 - pytest, Node test runner, and Playwright/Chrome.

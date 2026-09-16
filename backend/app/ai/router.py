@@ -1,26 +1,13 @@
 from hashlib import sha256
-from typing import Literal
 from uuid import UUID
 
-from fastapi import (
-    APIRouter,
-    Depends,
-    Header,
-    HTTPException,
-    Request,
-    Response,
-    status,
-)
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.ai.dependencies import get_ai_service, get_ai_settings, get_embedding_provider
 from app.ai.indexing.chunks import chunk_index_coverage, enqueue_chunk_backfill
-from app.ai.explanations import queue_explanation
 from app.ai.schemas import (
-    AIExplainRequest,
-    AIExplanation,
-    ExplanationJobResponse,
     AIHealthResponse,
     AIReviewSubmission,
     SimilaritySearchRequest,
@@ -29,9 +16,8 @@ from app.ai.schemas import (
 from app.ai.service import AISimilarityService
 from app.database import get_db
 from app.deps import add_audit_log, get_current_user, request_ip, require_permission
-from app.models import AIInferenceRun, ParliamentaryRecord, ReviewDecision, User
+from app.models import ParliamentaryRecord, ReviewDecision, User
 from app.jobs.queue import enqueue_outbox_job
-from app.services.record_visibility import can_view_record
 from app.services.idempotency import (
     IdempotencyConflict,
     IdempotencyInProgress,
@@ -46,42 +32,6 @@ from app.services.transactions import (
 )
 
 router = APIRouter(prefix="/ai", tags=["ai"])
-
-ExplanationStatus = Literal["queued", "running", "completed", "failed"]
-
-
-def _explanation_status(outcome: str) -> ExplanationStatus:
-    if outcome not in ("queued", "running", "completed", "failed"):
-        raise ValueError(f"unexpected AI inference run outcome: {outcome!r}")
-    return outcome
-
-
-def _visible_evidence_records(
-    db: Session,
-    user: User,
-    record_ids: list[UUID],
-) -> list[ParliamentaryRecord]:
-    records = list(
-        db.query(ParliamentaryRecord)
-        .filter(ParliamentaryRecord.id.in_(record_ids))
-        .all()
-    )
-    records_by_id = {record.id: record for record in records}
-    if len(records_by_id) != len(set(record_ids)):
-        raise HTTPException(
-            status_code=404,
-            detail="One or more evidence records not found",
-        )
-    ordered = []
-    for record_id in record_ids:
-        record = records_by_id.get(record_id)
-        if record is None or not can_view_record(record, user):
-            raise HTTPException(
-                status_code=404,
-                detail="One or more evidence records not found",
-            )
-        ordered.append(record)
-    return ordered
 
 
 @router.get("/health", response_model=AIHealthResponse)
@@ -110,121 +60,6 @@ def ai_search(
     )
     db.commit()
     return response
-
-
-@router.post("/explain", response_model=AIExplanation)
-def ai_explain(
-    explain_request: AIExplainRequest,
-    request: Request,
-    service: AISimilarityService = Depends(get_ai_service),
-    db: Session = Depends(get_db),
-    user: User = Depends(require_permission("review_submission")),
-) -> AIExplanation:
-    ordered_records = _visible_evidence_records(
-        db, user, explain_request.record_ids
-    )
-
-    evidence = [
-        {
-            "record_id": record.id,
-            "subject": record.subject,
-            "full_text": record.full_text,
-            "member": record.member,
-            "ministry": record.ministry,
-            "session": record.session.name if record.session else None,
-            "sitting_date": record.sitting_date.isoformat() if record.sitting_date else None,
-            "status": record.status,
-        }
-        for record in ordered_records
-    ]
-    explanation = service.explain(explain_request.query_text, evidence)
-    allowed_ids = set(explain_request.record_ids)
-    explanation = explanation.model_copy(
-        update={
-            "supporting_record_ids": [
-                record_id
-                for record_id in explanation.supporting_record_ids
-                if record_id in allowed_ids
-            ],
-            "human_review_required": True,
-        }
-    )
-    add_audit_log(
-        db,
-        user_id=user.id,
-        action="ai_explanation",
-        entity_type="parliamentary_record",
-        entity_id=",".join(str(record_id) for record_id in explain_request.record_ids),
-        details=f"classification={explanation.classification};model={explanation.model}",
-        ip_address=request_ip(request),
-    )
-    db.commit()
-    return explanation
-
-
-@router.post(
-    "/explanations",
-    response_model=ExplanationJobResponse,
-    status_code=status.HTTP_202_ACCEPTED,
-)
-def create_explanation(
-    explain_request: AIExplainRequest,
-    request: Request,
-    response: Response,
-    db: Session = Depends(get_db),
-    user: User = Depends(require_permission("review_submission")),
-    settings=Depends(get_ai_settings),
-) -> ExplanationJobResponse:
-    records = _visible_evidence_records(db, user, explain_request.record_ids)
-    run, cached = queue_explanation(
-        db,
-        user=user,
-        query_text=explain_request.query_text,
-        records=records,
-        settings=settings,
-    )
-    add_audit_log(
-        db,
-        user_id=user.id,
-        action="ai_explanation_queued",
-        entity_type="ai_inference_run",
-        entity_id=str(run.id),
-        details=f"cached={cached};evidence={len(records)}",
-        ip_address=request_ip(request),
-    )
-    db.commit()
-    if cached:
-        response.status_code = status.HTTP_200_OK
-    result = AIExplanation.model_validate(run.result) if run.result else None
-    return ExplanationJobResponse(
-        run_id=run.id,
-        status=_explanation_status(run.outcome),
-        cached=cached,
-        result=result,
-        error=run.error,
-    )
-
-
-@router.get(
-    "/explanations/{run_id}",
-    response_model=ExplanationJobResponse,
-)
-def get_explanation(
-    run_id: UUID,
-    db: Session = Depends(get_db),
-    user: User = Depends(require_permission("review_submission")),
-) -> ExplanationJobResponse:
-    run = db.get(AIInferenceRun, run_id)
-    if run is None or run.run_type != "grounded_explanation":
-        raise HTTPException(status_code=404, detail="Explanation run not found")
-    _visible_evidence_records(db, user, list(run.evidence_ids or []))
-    return ExplanationJobResponse(
-        run_id=run.id,
-        status=_explanation_status(run.outcome),
-        cached=run.outcome == "completed",
-        result=AIExplanation.model_validate(run.result) if run.result else None,
-        error=run.error,
-    )
 
 
 @router.get("/index/coverage")

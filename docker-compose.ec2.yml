@@ -21,7 +21,6 @@ services:
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:?OLLAMA_BASE_URL is required}
       OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-embeddinggemma:300m}
-      OLLAMA_LLM_MODEL: ${OLLAMA_LLM_MODEL:-qwen3.5:4b}
     volumes: !override []
 
   worker:
@@ -30,7 +29,6 @@ services:
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:?OLLAMA_BASE_URL is required}
       OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-embeddinggemma:300m}
-      OLLAMA_LLM_MODEL: ${OLLAMA_LLM_MODEL:-qwen3.5:4b}
 
   frontend:
     image: naz-order-papers-frontend:${IMAGE_TAG:-latest}

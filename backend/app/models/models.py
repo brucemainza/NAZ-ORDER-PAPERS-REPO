@@ -505,35 +505,6 @@ class RecordChunk(Base):
     )
 
 
-class AIInferenceRun(Base):
-    __tablename__ = "ai_inference_runs"
-
-    id: Mapped[UUID] = mapped_column(
-        PostgresUUID(as_uuid=True), primary_key=True, default=uuid4
-    )
-    run_type: Mapped[str] = mapped_column(Text, index=True)
-    user_id: Mapped[Optional[UUID]] = mapped_column(
-        PostgresUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
-    )
-    query_hash: Mapped[Optional[str]] = mapped_column(String(64), index=True)
-    evidence_ids: Mapped[Optional[List[UUID]]] = mapped_column(
-        ARRAY(PostgresUUID(as_uuid=True))
-    )
-    prompt_version: Mapped[Optional[str]] = mapped_column(Text)
-    model: Mapped[str] = mapped_column(Text)
-    model_digest: Mapped[Optional[str]] = mapped_column(Text)
-    request_metadata: Mapped[Optional[dict]] = mapped_column(JSONB)
-    result: Mapped[Optional[dict]] = mapped_column(JSONB)
-    outcome: Mapped[str] = mapped_column(Text, index=True)
-    latency_ms: Mapped[Optional[int]] = mapped_column(Integer)
-    error: Mapped[Optional[str]] = mapped_column(Text)
-    cache_key: Mapped[Optional[str]] = mapped_column(Text, unique=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
-    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-
-
 class IdempotencyKey(Base):
     __tablename__ = "idempotency_keys"
     __table_args__ = (

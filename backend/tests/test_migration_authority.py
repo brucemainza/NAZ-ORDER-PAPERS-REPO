@@ -55,16 +55,16 @@ def test_fresh_database_upgrades_to_complete_head():
         finally:
             engine.dispose()
 
-    assert revision == "20260805_0011"
+    assert revision == "20260916_0012"
     assert {
         "parliamentary_records",
         "background_jobs",
         "outbox_events",
         "record_chunks",
-        "ai_inference_runs",
         "idempotency_keys",
         "worker_heartbeats",
     }.issubset(tables)
+    assert "ai_inference_runs" not in tables
 
 
 def test_database_at_0006_upgrades_without_losing_records():
