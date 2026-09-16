@@ -173,8 +173,8 @@
       <div class="hero__meta">
         <span class="pill">Local-only Ollama</span>
         <span class="pill">PostgreSQL 16 + pgvector</span>
-        <span class="pill">Alembic head 20260805_0011</span>
-        <span class="pill">Human decision required</span>
+        <span class="pill">Alembic head 20260916_0012</span>
+        <span class="pill">AI optional at startup</span>
         <span class="pill">Offline document</span>
       </div>
     </div>
@@ -499,7 +499,7 @@ PYTHONPATH=backend python -m scripts.benchmark_search \
         </div>
         <h3>Recommended alerts</h3>
         <ul>
-          <li>Core readiness false or schema revision differs from <code>20260805_0011</code>.</li>
+          <li>Core readiness false or schema revision differs from <code>20260916_0012</code>.</li>
           <li>Dead-letter depth above zero; retry depth or oldest pending age rising.</li>
           <li>Worker heartbeat older than <code>WORKER_STALE_SECONDS</code>.</li>
           <li>AI degraded-search rate or model failure rate above the agreed baseline.</li>
