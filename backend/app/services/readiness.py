@@ -75,9 +75,6 @@ class ReadinessProbe:
                 model.get("name") or model.get("model")
                 for model in response.json().get("models", [])
             }
-            # ollama_llm_model (qwen) is intentionally left out of the required
-            # set for now — it isn't provisioned on all deployments and its
-            # absence shouldn't fail the embedding/semantic-search health check.
             required_models = {self._settings.ollama_embedding_model}
             missing_models = sorted(required_models - models)
             if missing_models:

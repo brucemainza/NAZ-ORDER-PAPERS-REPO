@@ -84,8 +84,7 @@ def test_ai_documentation_describes_current_durable_architecture():
         "retrieval_mode",
         "ranking_score",
         "cosine_similarity",
-        "human_review_required",
-        "20260805_0011",
+        "20260916_0012",
     ):
         assert required in html
 
@@ -107,7 +106,7 @@ def test_ai_documentation_is_offline_and_removes_obsolete_implementation_claims(
 def test_ai_documentation_restores_original_diagram_style():
     html = DOCUMENT.read_text()
 
-    assert html.count('class="legacy-diagram"') >= 3
+    assert html.count('class="legacy-diagram"') >= 2
     assert '<div class="flow"' not in html
     assert ".legacy-diagram .user" in html
     assert ".legacy-diagram .box" in html

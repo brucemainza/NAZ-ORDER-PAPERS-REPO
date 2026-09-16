@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from app.ai.schemas import AIExplanation, RecordMatch, SimilaritySearchRequest
+from app.ai.schemas import RecordMatch, SimilaritySearchRequest
 
 
 class EmbeddingProvider(ABC):
@@ -61,15 +61,3 @@ class RankFusion(ABC):
     @abstractmethod
     def combine(self, *ranked_lists: list[RecordMatch]) -> list[RecordMatch]:
         """Merge and return a fused ranked list."""
-
-
-class ExplanationProvider(ABC):
-    """Generate a grounded explanation from retrieved evidence."""
-
-    @abstractmethod
-    def explain(
-        self,
-        query_text: str,
-        evidence: list[dict],
-    ) -> AIExplanation:
-        """Return a structured explanation grounded in the supplied evidence."""

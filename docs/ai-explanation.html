@@ -169,12 +169,12 @@
     <div class="hero__inner">
       <p class="eyebrow">National Assembly of Zambia · Order Papers</p>
       <h1>Production AI implementation</h1>
-      <p class="lede">A code-aligned guide to the running prototype: PostgreSQL lexical search, Ollama embeddings, pgvector passage retrieval, reciprocal-rank fusion, durable recovery, strict AI readiness, and grounded human-reviewed explanations.</p>
+      <p class="lede">A code-aligned guide to the running prototype: PostgreSQL lexical search, Ollama embeddings (embeddinggemma only), pgvector passage retrieval, reciprocal-rank fusion, durable recovery, and optional AI readiness.</p>
       <div class="hero__meta">
         <span class="pill">Local-only Ollama</span>
         <span class="pill">PostgreSQL 16 + pgvector</span>
-        <span class="pill">Alembic head 20260805_0011</span>
-        <span class="pill">Human decision required</span>
+        <span class="pill">Alembic head 20260916_0012</span>
+        <span class="pill">AI optional at startup</span>
         <span class="pill">Offline document</span>
       </div>
     </div>
@@ -187,7 +187,7 @@
       <a href="#architecture">2. Architecture</a>
       <a href="#indexing">3. Write and indexing path</a>
       <a href="#retrieval">4. Retrieval and ranking</a>
-      <a href="#explanations">5. Grounded explanations</a>
+      <a href="#explanations">5. Grounded explanations (removed)</a>
       <a href="#worker">6. Durable worker</a>
       <a href="#api">7. API contract</a>
       <a href="#data">8. Database structures</a>
@@ -206,11 +206,11 @@
     <main>
       <section id="scope">
         <h2>1. Scope and guarantees</h2>
-        <p>The AI layer assists parliamentary staff in finding related historical records and explaining the retrieved evidence. It does not answer a parliamentary question, make a procedural decision, or change a record by itself.</p>
+        <p>The AI layer assists parliamentary staff in finding related historical records via hybrid keyword and semantic search. It does not answer a parliamentary question, make a procedural decision, or change a record by itself. As of 2026-09-16 the only AI component in this project is the <code>embeddinggemma:300m</code> embedding model — there is no local-LLM explanation/generation step (see Section 5).</p>
         <div class="grid three">
-          <div class="card"><div class="kpi">Local</div><h4>No external model API</h4><p>Embedding and explanation calls go to the configured Ollama service. Parliamentary prompts and text are not sent to a cloud AI provider by this implementation.</p></div>
-          <div class="card"><div class="kpi">Durable</div><h4>Database-backed work</h4><p>Indexing, explanation, and archival work is represented by committed PostgreSQL jobs and outbox events with leases, retries, visible dead letters, and audited recovery.</p></div>
-          <div class="card"><div class="kpi">Advisory</div><h4>Human review enforced</h4><p>The server overwrites <code>human_review_required</code> with <code>true</code>, even if model output says otherwise.</p></div>
+          <div class="card"><div class="kpi">Local</div><h4>No external model API</h4><p>Embedding calls go to the configured Ollama service. Parliamentary prompts and text are not sent to a cloud AI provider by this implementation.</p></div>
+          <div class="card"><div class="kpi">Durable</div><h4>Database-backed work</h4><p>Indexing and archival work is represented by committed PostgreSQL jobs and outbox events with leases, retries, visible dead letters, and audited recovery.</p></div>
+          <div class="card"><div class="kpi">Optional</div><h4>AI is not required to run</h4><p><code>/readyz</code> does not fail the whole stack when Ollama/the embedding model is unavailable unless <code>AI_REQUIRED=true</code> is explicitly set; search degrades to lexical-only instead.</p></div>
         </div>
         <div class="callout warn"><strong>Important:</strong> the response field called <code>score</code> is retained for compatibility and is a ranking score. It is not a calibrated probability. Where available, raw semantic closeness is returned separately as <code>cosine_similarity</code>.</div>
       </section>
@@ -233,9 +233,6 @@
           &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br>
           &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;▼<br>
           &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="box">Reciprocal Rank Fusion (k=60) → final top-k</span><br>
-          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│ optional evidence-grounded explanation<br>
-          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;▼<br>
-          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="model">Ollama qwen3.5:4b → validated JSON → human review</span><br>
           &nbsp;&nbsp;├─→ <span class="db">PostgreSQL + pgvector — records, tsvector, vector(768) chunks, audit</span><br>
           &nbsp;&nbsp;└─→ <span class="worker">durable worker → exponential retry → visible dead letter → audited recovery</span>
           <span class="diagram-caption">Healthy searches combine lexical and semantic ranks. Embedding failure is explicit lexical fallback, while strict readiness returns 503 until Ollama and the durable queue are healthy.</span>
@@ -256,8 +253,7 @@
   DB --> JOBS[background_jobs + outbox_events]
   JOBS -- FOR UPDATE SKIP LOCKED --> WORKER[Durable worker]
   WORKER --> EMBED
-  WORKER --> CHUNKS[(record_chunks)]
-  WORKER --> RUNS[(ai_inference_runs)]</pre>
+  WORKER --> CHUNKS[(record_chunks)]</pre>
         </details>
         <p>The maintained lexical and semantic paths both apply structured filters and record visibility in SQL before ranking. The semantic path reads version-compatible passages from <code>record_chunks</code>; the old whole-record vector remains only as a compatibility path for existing duplicate checks during one transition release.</p>
       </section>
@@ -331,64 +327,9 @@
       </section>
 
       <section id="explanations">
-        <h2>5. Grounded explanation flow</h2>
-        <p>The preferred path is asynchronous: create an explanation run, receive HTTP 202, and poll until <code>completed</code> or <code>failed</code>. A completed compatible request returns HTTP 200 immediately from cache. The secured <code>/ai/explain</code> compatibility endpoint remains available for one release and records a synchronous inference audit row.</p>
-        <ol class="steps">
-          <li><strong>Authorize and resolve evidence.</strong> The caller needs <code>review_submission</code>. Every supplied UUID must exist and be visible to that caller. Missing and inaccessible evidence use the same safe 404 response.</li>
-          <li><strong>Bound the context.</strong> Query, each evidence body, and total serialized context have deterministic character limits. Oversize content is truncated and the run metadata records that fact.</li>
-          <li><strong>Delimit untrusted data.</strong> The query and JSON evidence appear inside explicit <code>&lt;untrusted-query&gt;</code> and <code>&lt;untrusted-evidence&gt;</code> blocks. The system prompt says their contents are data, never instructions.</li>
-          <li><strong>Constrain generation.</strong> Ollama receives an explicit JSON schema, temperature 0, no tools (<code>tools: []</code>), reasoning disabled (<code>think: false</code>), a bounded output budget, and no stream.</li>
-          <li><strong>Validate twice.</strong> Pydantic validates the structure and enumerations. Every supporting/evidence-assessment ID must be a subset of supplied evidence. The server then forces <code>human_review_required: true</code>.</li>
-          <li><strong>Fail safe.</strong> Malformed JSON gets one schema reminder. Continued invalidity or model unavailability returns a low-confidence <code>no_strong_match</code> result with an error and manual-review wording.</li>
-          <li><strong>Audit and cache.</strong> <code>ai_inference_runs</code> stores query hash, evidence IDs, prompt version, model/digest, result, latency, outcome, and error. Cache identity covers normalized query hash, sorted evidence IDs, prompt version, and model digest.</li>
-        </ol>
-        <div class="legacy-diagram" role="img" aria-label="Grounded explanation flow in the original document diagram style">
-          <span class="user">Clerk requests an explanation for selected evidence</span><br>
-          &nbsp;&nbsp;│<br>
-          &nbsp;&nbsp;▼<br>
-          <span class="guard">Permission check + per-record visibility + safe 404</span><br>
-          &nbsp;&nbsp;│<br>
-          &nbsp;&nbsp;├─→ <span class="db">compatible completed cache</span> → return HTTP 200<br>
-          &nbsp;&nbsp;└─→ <span class="db">inference run + outbox job</span> → return HTTP 202<br>
-          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br>
-          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;▼<br>
-          <span class="worker">Explanation worker</span><br>
-          &nbsp;&nbsp;├─→ bound query/evidence and delimit all record text as untrusted data<br>
-          &nbsp;&nbsp;├─→ <span class="model">Ollama /api/chat — JSON schema, tools=[], think=false</span><br>
-          &nbsp;&nbsp;├─→ <span class="guard">Pydantic + evidence-ID allow-list validation</span><br>
-          &nbsp;&nbsp;├─→ force <strong>human_review_required=true</strong><br>
-          &nbsp;&nbsp;└─→ <span class="db">audited result, latency, outcome, error, and cache identity</span><br>
-          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br>
-          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;▼<br>
-          <span class="user">Clerk polls and makes the final human decision</span>
-          <span class="diagram-caption">Model output is advisory: it cannot introduce evidence, disable review, or write a procedural decision.</span>
-        </div>
-        <details>
-          <summary>Mermaid source — asynchronous explanation</summary>
-          <pre class="mermaid-source">sequenceDiagram
-  participant C as Clerk UI
-  participant A as FastAPI
-  participant D as PostgreSQL
-  participant W as Worker
-  participant L as Ollama LLM
-  C->>A: POST /ai/explanations
-  A->>D: Validate visible evidence + cache key
-  alt compatible completed cache
-    A-->>C: 200 + completed result
-  else new run
-    A->>D: Commit inference run + outbox job
-    A-->>C: 202 + run_id
-    W->>D: Claim generate_explanation
-    W->>L: Bounded untrusted evidence, JSON schema, tools=[], think=false
-    L-->>W: Structured JSON
-    W->>W: Pydantic + evidence subset + human review
-    W->>D: Store result, latency and outcome
-    C->>A: GET /ai/explanations/{run_id}
-    A-->>C: completed or failed
-  end</pre>
-        </details>
-        <h3>Output contract</h3>
-        <p>The top-level classification is one of <code>exact_duplicate</code>, <code>potential_duplicate</code>, <code>related_matter</code>, or <code>no_strong_match</code>. Each evidence record also gets its own classification: <code>exact_duplicate</code>, <code>potential_duplicate</code>, <code>related_matter</code>, or <code>not_related</code>, plus a bounded rationale.</p>
+        <h2>5. Grounded explanation flow — removed</h2>
+        <div class="callout warn"><strong>Removed 2026-09-16:</strong> the project now uses <code>embeddinggemma:300m</code> as its only AI component. The local-LLM (<code>qwen3.5:4b</code>) grounded-explanation feature described in earlier versions of this document — the asynchronous <code>/ai/explanations</code> job, the synchronous <code>/ai/explain</code> compatibility endpoint, the <code>generate_explanation</code> worker job, the <code>ai_inference_runs</code> table, and the "AI Similarity Evidence" panel on the result detail page — has been deleted from the codebase (backend, frontend, and database schema via migration <code>20260916_0012</code>).</div>
+        <p>Everything else in this document that depends only on embeddings — hybrid lexical/semantic search (Section 4), the indexing pipeline (Section 3), and the embed_record durable job (Section 6) — is unaffected and remains exactly as described.</p>
       </section>
 
       <section id="worker">
@@ -400,7 +341,6 @@
               <tr><td><code>embed_record</code></td><td>Compatibility record vector plus current chunk index</td><td>Content hash prevents an old edit from overwriting new content.</td></tr>
               <tr><td><code>reindex_record</code></td><td>Rebuild compatibility/chunk embeddings</td><td>Record/model identity is part of the deduplication key.</td></tr>
               <tr><td><code>index_record_chunks</code></td><td>Versioned passage indexing</td><td>Existing chunk index + hash + model digest + preprocessing version is reused.</td></tr>
-              <tr><td><code>generate_explanation</code></td><td>Grounded explanation inference</td><td>Unique cache key and job key prevent duplicate completed runs.</td></tr>
               <tr><td><code>archive_records</code></td><td>Archive records from ended sessions</td><td>Status transition is repeat-safe.</td></tr>
             </tbody>
           </table>
@@ -416,11 +356,8 @@
           <table>
             <thead><tr><th>Method and route</th><th>Access</th><th>Purpose / response</th></tr></thead>
             <tbody>
-              <tr><td><code>GET /ai/health</code></td><td>Authenticated via AI service dependency</td><td>Ollama reachability, loaded model names, and configured dimension. Operational readiness uses <code>/readyz</code>.</td></tr>
+              <tr><td><code>GET /ai/health</code></td><td>Authenticated via AI service dependency</td><td>Ollama reachability, loaded embedding model, and configured dimension. Operational readiness uses <code>/readyz</code>.</td></tr>
               <tr><td><code>POST /ai/search</code></td><td>Authenticated; row visibility enforced</td><td>Hybrid/lexical search with structured filters, pagination, rank fields, degradation metadata, and an audit event.</td></tr>
-              <tr><td><code>POST /ai/explain</code></td><td><span class="tag review">review_submission</span></td><td>Secured compatibility explanation, supplied evidence only; synchronous inference run is audited.</td></tr>
-              <tr><td><code>POST /ai/explanations</code></td><td><span class="tag review">review_submission</span></td><td>Queue a durable explanation (202) or reuse completed compatible cache (200).</td></tr>
-              <tr><td><code>GET /ai/explanations/{run_id}</code></td><td><span class="tag review">review_submission</span></td><td>Poll outcome/result after evidence visibility is rechecked.</td></tr>
               <tr><td><code>GET /ai/index/coverage</code></td><td><span class="tag review">review_submission</span></td><td>Eligible/indexed record counts and compatibility identity; updates the coverage gauge.</td></tr>
               <tr><td><code>POST /ai/index/{record_id}</code></td><td><span class="tag review">review_submission</span></td><td>Queue one versioned indexing request and return job/model identity (202).</td></tr>
               <tr><td><code>POST /ai/reindex</code></td><td><span class="tag review">review_submission</span></td><td>Queue a cursor-resumable batch; <code>limit</code> is clamped to 1–500 and <code>after_id</code> resumes.</td></tr>
@@ -429,12 +366,12 @@
           </table>
         </div>
         <h3>Next.js same-origin proxy routes</h3>
-        <p>The browser-facing BFF currently exposes <code>POST /api/ai/search</code>, <code>POST /api/ai/explain</code>, <code>POST /api/ai/explanations</code>, and <code>GET /api/ai/explanations/{id}</code>. Administrative index, health, and review routes are backend/operator interfaces and do not currently have a browser proxy.</p>
+        <p>The browser-facing BFF currently exposes <code>POST /api/ai/search</code>. Administrative index, health, and review routes are backend/operator interfaces and do not currently have a browser proxy.</p>
         <h3>Operational routes</h3>
         <ul>
           <li><code>GET /livez</code> — process liveness with no dependency calls.</li>
           <li><code>GET /health</code> — compatibility alias for liveness.</li>
-          <li><code>GET /readyz</code> — strict traffic readiness. PostgreSQL and the exact Alembic head, required Ollama models, and a zero dead-letter count are mandatory. Failure returns HTTP 503 with a specific check.</li>
+          <li><code>GET /readyz</code> — strict traffic readiness. PostgreSQL, the exact Alembic head, and a zero dead-letter count are mandatory. Ollama/the embedding model is checked and reported but does not block readiness unless <code>AI_REQUIRED=true</code> is set. Failure returns HTTP 503 with a specific check.</li>
         </ul>
       </section>
 
@@ -448,14 +385,13 @@
               <tr><td><code>record_chunks</code></td><td>Bounded passage text and versioned embeddings.</td><td>Unique record/chunk/hash/model/digest/preprocessing tuple; partial HNSW cosine index.</td></tr>
               <tr><td><code>background_jobs</code></td><td>Claimable work, attempts, leases, retry schedule, completion/dead-letter state.</td><td>Unique deduplication key and claim-oriented status/time index.</td></tr>
               <tr><td><code>outbox_events</code></td><td>Transactional event paired to a job and marked published on successful handling.</td><td>Aggregate and event-type indexes.</td></tr>
-              <tr><td><code>ai_inference_runs</code></td><td>Prompt/model/evidence/result/latency/outcome audit and explanation cache.</td><td>Unique cache key; query-hash, run-type, and outcome indexes.</td></tr>
               <tr><td><code>idempotency_keys</code></td><td>Request hash and replayed response for mutation endpoints.</td><td>Unique <code>(scope, key)</code>.</td></tr>
               <tr><td><code>worker_heartbeats</code></td><td>Latest worker status/host for readiness and operations.</td><td>Worker ID primary key and latest-seen index.</td></tr>
               <tr><td><code>review_decisions</code></td><td>Human duplicate/similarity decision using established domain vocabulary.</td><td>Constraints prohibit self-links and invalid decision/related-record combinations.</td></tr>
             </tbody>
           </table>
         </div>
-        <p>Alembic is the only schema authority. Production startup performs no DDL. The current head is <code>20260805_0011</code>; migrations are run with <code>python -m scripts.migrate</code>, which takes a PostgreSQL advisory lock. Existing databases are verified and stamped before upgrade rather than recreated.</p>
+        <p>Alembic is the only schema authority. Production startup performs no DDL. The current head is <code>20260916_0012</code>; migrations are run with <code>python -m scripts.migrate</code>, which takes a PostgreSQL advisory lock. Existing databases are verified and stamped before upgrade rather than recreated.</p>
       </section>
 
       <section id="configuration">
@@ -468,8 +404,6 @@
               <tr><td><code>OLLAMA_BASE_URL</code></td><td><code>http://localhost:11434</code> outside containers; <code>http://host.docker.internal:11434</code> in Compose</td><td>Single canonical Ollama API port. The host listener is bridge-scoped at <code>172.17.0.1:11434</code>, not exposed to the LAN.</td></tr>
               <tr><td><code>OLLAMA_EMBEDDING_MODEL</code></td><td><code>embeddinggemma:300m</code></td><td>Embedding model tag.</td></tr>
               <tr><td><code>OLLAMA_EMBEDDING_MODEL_DIGEST</code></td><td>empty</td><td>Exact approved digest; provider otherwise resolves it from Ollama tags.</td></tr>
-              <tr><td><code>OLLAMA_LLM_MODEL</code></td><td><code>qwen3.5:4b</code></td><td>Grounded explanation model tag.</td></tr>
-              <tr><td><code>OLLAMA_LLM_MODEL_DIGEST</code></td><td>empty</td><td>Exact explanation model digest used in audit/cache identity; required in production.</td></tr>
               <tr><td><code>AI_EMBEDDING_DIMENSION</code></td><td>768</td><td>Exact expected vector width.</td></tr>
               <tr><td><code>AI_RRF_K</code></td><td>60</td><td>Rank-fusion constant.</td></tr>
               <tr><td><code>AI_LEXICAL_TOP_K</code></td><td>20</td><td>Minimum lexical candidate window.</td></tr>
@@ -482,12 +416,6 @@
               <tr><td><code>AI_CHUNK_MAX_CHARS</code></td><td>1800</td><td>Maximum subject-prefixed passage size.</td></tr>
               <tr><td><code>AI_CHUNK_OVERLAP_CHARS</code></td><td>240</td><td>Approximate word-boundary overlap.</td></tr>
               <tr><td><code>AI_PREPROCESSING_VERSION</code></td><td><code>chunks-v1</code></td><td>Chunk/text preprocessing compatibility identity.</td></tr>
-              <tr><td><code>AI_EXPLANATION_ENABLED</code></td><td>true</td><td>Feature switch; disabled mode returns a manual-review result.</td></tr>
-              <tr><td><code>AI_EXPLANATION_MAX_TOKENS</code></td><td>400</td><td>Maximum generated tokens.</td></tr>
-              <tr><td><code>AI_EXPLANATION_QUERY_MAX_CHARS</code></td><td>4000</td><td>Bounded query characters.</td></tr>
-              <tr><td><code>AI_EXPLANATION_EVIDENCE_MAX_CHARS</code></td><td>6000</td><td>Maximum full-text characters per evidence record.</td></tr>
-              <tr><td><code>AI_EXPLANATION_CONTEXT_MAX_CHARS</code></td><td>18000</td><td>Total serialized query/evidence budget.</td></tr>
-              <tr><td><code>AI_PROMPT_VERSION</code></td><td><code>grounded-v1</code></td><td>Prompt/cache/audit compatibility version.</td></tr>
               <tr><td><code>SIMILARITY_THRESHOLD_VERSION</code></td><td><code>2026-08-05-v1</code></td><td>Threshold policy identity returned with duplicate checks.</td></tr>
               <tr><td><code>DUPLICATE_SIMILARITY_THRESHOLD</code></td><td>0.95</td><td>Candidate threshold; deployment requires measured 95% precision.</td></tr>
               <tr><td><code>AUTOMATIC_LINK_SIMILARITY_THRESHOLD</code></td><td>0.99</td><td>Automatic-link candidate threshold; deployment requires measured 98% precision.</td></tr>
@@ -503,10 +431,9 @@
       <section id="security">
         <h2>10. Security and data-integrity controls</h2>
         <ul>
-          <li><strong>Visibility first:</strong> draft ownership and archive permission filters execute before lexical/semantic ranking. Explanation evidence is individually rechecked both at queue time and worker time.</li>
+          <li><strong>Visibility first:</strong> draft ownership and archive permission filters execute before lexical/semantic ranking.</li>
           <li><strong>Safe not-found:</strong> missing and inaccessible evidence are indistinguishable to callers.</li>
-          <li><strong>Permission boundary:</strong> explanation, indexing, reindexing, and AI review require the established <code>review_submission</code> permission.</li>
-          <li><strong>Prompt-injection boundary:</strong> untrusted content is delimited, tools are disabled, schema is constrained, IDs are allow-listed, context is capped, and model output never overrides human review.</li>
+          <li><strong>Permission boundary:</strong> indexing, reindexing, and AI review require the established <code>review_submission</code> permission.</li>
           <li><strong>Review integrity:</strong> row locking, idempotency keys, domain vocabulary, relationship validation, database constraints, safe conflict responses, and transactional audit rows protect writes.</li>
           <li><strong>Private logs:</strong> structured logging carries request IDs while redacting bearer tokens, JWT-shaped values, credentials, prompts, queries, and full record text. SQL parameters are hidden.</li>
           <li><strong>Local deployment:</strong> production containers are non-root/read-only where supported, capabilities are dropped, PostgreSQL is not host-published, and default-deny Kubernetes networking is supplied.</li>
@@ -521,10 +448,9 @@
             <thead><tr><th>Failure</th><th>User-visible behaviour</th><th>Recovery / operator action</th></tr></thead>
             <tbody>
               <tr><td>Ollama unreachable during submission</td><td>Domain record still commits; compatibility embedding may be null; warning says semantic indexing is queued.</td><td>Durable job retries. Restore Ollama and inspect queue depth/dead letters.</td></tr>
-              <tr><td>Ollama unreachable during search</td><td>The request can return explicit lexical fallback metadata.</td><td><code>/readyz</code> returns 503 and prevents the Compose frontend readiness gate from treating the application as healthy. Restore bridge connectivity/model availability and allow the circuit interval to close.</td></tr>
+              <tr><td>Ollama unreachable during search</td><td>The request can return explicit lexical fallback metadata.</td><td><code>/readyz</code> reports the AI check as unavailable but stays <code>ready</code> unless <code>AI_REQUIRED=true</code> is set. Restore bridge connectivity/model availability and allow the circuit interval to close.</td></tr>
               <tr><td>Wrong embedding dimension/order/count</td><td>No corrupt vector is stored; job fails safely.</td><td>Correct model/dimension, then retry/requeue the failed indexing work.</td></tr>
               <tr><td>Model digest changed</td><td>Stale vectors are excluded from semantic retrieval.</td><td>Pin the approved digest and run resumable reindexing until coverage is complete.</td></tr>
-              <tr><td>Invalid explanation JSON or fabricated ID</td><td>One constrained retry, then a low-confidence manual-review fallback.</td><td>Inspect inference outcome/error and local model health; evidence remains authoritative.</td></tr>
               <tr><td>Worker interrupted</td><td>Job remains running until its lease expires.</td><td>Another worker reclaims it after lock expiry; handler identity prevents duplicates.</td></tr>
               <tr><td>Database or migration mismatch</td><td><code>/readyz</code> returns 503 and traffic should not be routed to the API.</td><td>Run the advisory-locked migration job and verify Alembic head.</td></tr>
             </tbody>
@@ -573,7 +499,7 @@ PYTHONPATH=backend python -m scripts.benchmark_search \
         </div>
         <h3>Recommended alerts</h3>
         <ul>
-          <li>Core readiness false or schema revision differs from <code>20260805_0011</code>.</li>
+          <li>Core readiness false or schema revision differs from <code>20260916_0012</code>.</li>
           <li>Dead-letter depth above zero; retry depth or oldest pending age rising.</li>
           <li>Worker heartbeat older than <code>WORKER_STALE_SECONDS</code>.</li>
           <li>AI degraded-search rate or model failure rate above the agreed baseline.</li>
@@ -601,8 +527,6 @@ PYTHONPATH=backend python -m scripts.benchmark_search \
               <tr><td>Lexical search misses expected text</td><td>Record visibility/status, FTS generated column, GIN index, English tokenization, structured filters.</td><td>Verify migration 0008/head and query with PostgreSQL <code>websearch_to_tsquery</code> semantics.</td></tr>
               <tr><td>Semantic results are empty</td><td>Coverage, active digest/dimension/preprocessing, pending/retry/dead-letter jobs.</td><td>Pin exact digest, correct dimension, resume backfill, process jobs.</td></tr>
               <tr><td>Dimension mismatch job failures</td><td>Configured <code>AI_EMBEDDING_DIMENSION</code> versus actual model output and vector schema.</td><td>Use the approved 768-dimensional model or create/verify an explicit migration before changing dimension.</td></tr>
-              <tr><td>Explanation remains queued</td><td>Worker heartbeat, generate-explanation queue, lease expiry, Ollama LLM loaded, run error.</td><td>Restore workers/model; reclaim happens automatically after lease expiry.</td></tr>
-              <tr><td>Explanation always falls back</td><td>Inference errors, schema conformance, evidence-ID fabrication, context truncation, model digest.</td><td>Use the approved instruction-following model and inspect bounded prompt/result metadata without logging full text.</td></tr>
               <tr><td><code>/readyz</code> returns 503</td><td>Database connectivity, statement timeout, <code>alembic_version</code>, expected head.</td><td>Restore PostgreSQL and run the advisory-locked migration job; never create schema from application startup.</td></tr>
             </tbody>
           </table>
@@ -619,10 +543,9 @@ PYTHONPATH=backend python -m scripts.benchmark_search \
               <tr><td>Hybrid orchestration</td><td><code>backend/app/ai/service.py</code>, <code>backend/app/ai/retrieval/hybrid.py</code></td></tr>
               <tr><td>Lexical retrieval</td><td><code>backend/app/ai/retrieval/lexical.py</code>, migration <code>20260805_0008</code></td></tr>
               <tr><td>Semantic retrieval/indexing</td><td><code>backend/app/ai/retrieval/semantic.py</code>, <code>backend/app/ai/indexing/chunks.py</code>, <code>backend/app/ai/embeddings/ollama_provider.py</code></td></tr>
-              <tr><td>Grounded generation</td><td><code>backend/app/ai/explanations.py</code>, <code>backend/app/ai/generation/prompts.py</code>, <code>backend/app/ai/generation/ollama_explainer.py</code></td></tr>
               <tr><td>Durable execution</td><td><code>backend/app/jobs/queue.py</code>, <code>backend/app/jobs/worker.py</code></td></tr>
               <tr><td>Exact matching/evaluation</td><td><code>backend/app/similarity/normalization.py</code>, <code>backend/app/similarity/duplicate_detection.py</code>, <code>backend/app/similarity/evaluation.py</code></td></tr>
-              <tr><td>Schema and migrations</td><td><code>backend/app/models/models.py</code>, <code>backend/alembic/versions/20260805_0007…0011</code></td></tr>
+              <tr><td>Schema and migrations</td><td><code>backend/app/models/models.py</code>, <code>backend/alembic/versions/20260805_0007…20260916_0012</code></td></tr>
               <tr><td>Operations</td><td><code>backend/app/services/readiness.py</code>, <code>backend/app/observability/</code>, <code>backend/app/ai/retrieval/benchmark.py</code>, <code>backend/scripts/benchmark_search.py</code></td></tr>
             </tbody>
           </table>
@@ -633,8 +556,7 @@ PYTHONPATH=backend python -m scripts.benchmark_search \
         <h2>17. Known limits and residual go-live risks</h2>
         <ul>
           <li><strong>Authentication is not hardened here.</strong> The frozen PyJWT dependency has documented advisories. Resolve the separate authentication work before unrestricted production exposure.</li>
-          <li><strong>Two compatibility paths remain for one release:</strong> <code>POST /ai/explain</code> and the whole-record vector used by legacy duplicate similarity. Their removal needs a versioned client/data migration.</li>
-          <li><strong>Exact LLM digest is operationally required:</strong> without <code>OLLAMA_LLM_MODEL_DIGEST</code>, cache identity records an unresolved tag string rather than a cryptographic model identity.</li>
+          <li><strong>One compatibility path remains for one release:</strong> the whole-record vector used by legacy duplicate similarity. Its removal needs a versioned client/data migration.</li>
           <li><strong>Default thresholds are not evidence:</strong> production automation remains blocked until the local historical evaluation meets precision targets.</li>
           <li><strong>Infrastructure examples need site values:</strong> replace example image digests, ingress host, TLS/storage classes, resource sizes, GPU scheduling, external backup storage, and secret integration.</li>
           <li><strong>Benchmark acceptance is environment-specific:</strong> execute the production-shaped 100,000-record test on target PostgreSQL/storage/hardware and record p50/p95/p99, plan, cache state, filter mix, and corpus snapshot.</li>
@@ -784,7 +706,7 @@ PYTHONPATH=backend python -m scripts.benchmark_search \
               <rect class="component ai" x="575" y="480" width="230" height="70"/>
               <text class="component-subtitle" x="690" y="502">«component»</text>
               <text class="component-title" x="690" y="524">AI orchestration</text>
-              <text class="component-subtitle" x="690" y="542">FTS, vectors, RRF, explanations</text>
+              <text class="component-subtitle" x="690" y="542">FTS, vectors, RRF</text>
             </g>
             <g filter="url(#uml-shadow)">
               <rect class="component" x="865" y="480" width="230" height="70"/>
@@ -812,7 +734,7 @@ PYTHONPATH=backend python -m scripts.benchmark_search \
               <rect class="component ai" x="410" y="690" width="250" height="125"/>
               <text class="component-subtitle" x="535" y="713">«component»</text>
               <text class="component-title" x="535" y="738">Durable worker</text>
-              <text class="component-subtitle" x="535" y="762">embedding + explanation</text>
+              <text class="component-subtitle" x="535" y="762">embedding</text>
               <text class="component-subtitle" x="535" y="782">chunk indexing + archival</text>
               <text class="component-subtitle" x="535" y="802">lease, retry, dead-letter recovery</text>
             </g>
@@ -873,7 +795,7 @@ package "FastAPI API" {
   component "Authorization and visibility" as Access
   component "API routers" as Routes
   component "Domain services\nworkflow, search, reports, papers" as Domain
-  component "AI orchestration\nFTS, vectors, RRF, explanations" as AI
+  component "AI orchestration\nFTS, vectors, RRF" as AI
   component "Document processing" as Documents
   component "Audit and observability" as Audit
   component "Job producer" as Producer
@@ -917,7 +839,7 @@ Alembic ..> DB : advisory-locked migrations
 Operator --> Alembic
 @enduml</pre>
         </details>
-        <div class="callout info"><strong>Component ownership:</strong> PostgreSQL is the state and recovery authority; FastAPI owns domain rules and secured APIs; workers own durable side effects; Ollama only produces embeddings and advisory structured explanations; clerks retain every procedural decision.</div>
+        <div class="callout info"><strong>Component ownership:</strong> PostgreSQL is the state and recovery authority; FastAPI owns domain rules and secured APIs; workers own durable side effects; Ollama only produces embeddings; clerks retain every procedural decision.</div>
       </section>
 
   <footer>

@@ -1,5 +1,4 @@
 from .models import (
-    AIInferenceRun,
     AuditLog,
     BackgroundJob,
     IdempotencyKey,

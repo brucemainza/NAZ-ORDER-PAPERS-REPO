@@ -12,13 +12,10 @@ from sqlalchemy.orm import Session
 
 from app.ai.dependencies import get_embedding_provider
 from app.ai.indexing.chunks import ChunkIndexingService
-from app.ai.explanations import process_explanation_run
-from app.ai.generation.ollama_explainer import OllamaExplanationProvider
 from app.ai.interfaces import EmbeddingProvider
 from app.database import SessionLocal
 from app.config import get_settings
 from app.models import (
-    AIInferenceRun,
     BackgroundJob,
     OutboxEvent,
     ParliamentaryRecord,
@@ -176,24 +173,11 @@ def run_job(
     job: BackgroundJob,
     *,
     embedding_provider: EmbeddingProvider | None = None,
-    explanation_provider=None,
 ) -> None:
     if job.job_type in {"embed_record", "reindex_record", "index_record_chunks"}:
         _run_embedding_job(db, job, embedding_provider or get_embedding_provider())
     elif job.job_type == "archive_records":
         archive_ended_session_records(db)
-    elif job.job_type == "generate_explanation":
-        run = db.get(AIInferenceRun, UUID(job.payload["run_id"]))
-        if run is None:
-            return
-        process_explanation_run(
-            db,
-            run,
-            provider=(
-                explanation_provider
-                or OllamaExplanationProvider(get_settings())
-            ),
-        )
     else:
         raise ValueError(f"unsupported background job type: {job.job_type}")
 
@@ -202,7 +186,6 @@ def process_claimed_job(
     job_id: UUID,
     *,
     embedding_provider: EmbeddingProvider | None = None,
-    explanation_provider=None,
 ) -> bool:
     with SessionLocal() as db:
         job = db.get(BackgroundJob, job_id)
@@ -213,7 +196,6 @@ def process_claimed_job(
                 db,
                 job,
                 embedding_provider=embedding_provider,
-                explanation_provider=explanation_provider,
             )
             complete_job(job)
             for event in db.scalars(
