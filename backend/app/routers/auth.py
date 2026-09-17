@@ -7,10 +7,15 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import add_audit_log, request_ip
-from app.lib.auth import create_access_token, verify_access_token, verify_password
+from app.deps import add_audit_log, get_current_user, request_ip
+from app.lib.auth import (
+    create_access_token,
+    get_password_hash,
+    verify_access_token,
+    verify_password,
+)
 from app.models.models import User, UserSession
-from app.schemas.auth import LoginRequest, LoginResponse, UserOut
+from app.schemas.auth import ChangePasswordRequest, LoginRequest, LoginResponse, UserOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 security = HTTPBearer(auto_error=False)
@@ -174,4 +179,33 @@ def logout(
                         ip_address=request_ip(req),
                     )
                     db.commit()
+    return {"success": True}
+
+
+@router.post("/change-password")
+def change_password(
+    payload: ChangePasswordRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    if not user.password_hash or not verify_password(payload.current_password, user.password_hash):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    if verify_password(payload.new_password, user.password_hash):
+        raise HTTPException(
+            status_code=400,
+            detail="New password must be different from the current password",
+        )
+
+    user.password_hash = get_password_hash(payload.new_password)
+    add_audit_log(
+        db,
+        user_id=user.id,
+        action="password_change",
+        entity_type="user",
+        entity_id=str(user.id),
+        details=user.employee_id,
+        ip_address=request_ip(request),
+    )
+    db.commit()
     return {"success": True}

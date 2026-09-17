@@ -1818,7 +1818,8 @@ video {
   }
 
   .sessions-page__form,
-  .sessions-page__dates {
+  .sessions-page__dates,
+  .topbar__password-form {
     display: grid;
     gap: 1rem;
   }

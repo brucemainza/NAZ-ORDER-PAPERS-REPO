@@ -14,7 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { hasPermission } from "@/lib/auth";
 import { formatDate } from "@/lib/utils";
 
-const emptyForm = { name: "", startDate: "", endDate: "", status: "Upcoming" };
+const emptyForm = { code: "", name: "", startDate: "", endDate: "", status: "Upcoming" };
 
 export default function SessionsPage() {
     const { user, isLoading: isAuthLoading } = useAuth();
@@ -50,11 +50,19 @@ export default function SessionsPage() {
     function openEditModal(session) {
         setEditingSession(session);
         setFormValues({
+            code: session.code,
             name: session.name,
             startDate: session.start_date,
             endDate: session.end_date,
             status: session.status,
         });
+        setActionError(null);
+        setIsModalOpen(true);
+    }
+
+    function openCreateModal() {
+        setEditingSession(null);
+        setFormValues(emptyForm);
         setActionError(null);
         setIsModalOpen(true);
     }
@@ -87,6 +95,32 @@ export default function SessionsPage() {
             closeModal();
         } catch (saveError) {
             setActionError(saveError.message || "Could not update session");
+        } finally {
+            setPendingActionId(null);
+        }
+    }
+
+    async function createSession() {
+        setPendingActionId("new");
+        setActionError(null);
+        try {
+            const response = await fetch("/api/sessions", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    code: formValues.code,
+                    name: formValues.name,
+                    start_date: formValues.startDate,
+                    end_date: formValues.endDate,
+                    status: formValues.status,
+                }),
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data.message || "Could not create session");
+            setSessions((current) => [data, ...current]);
+            closeModal();
+        } catch (createError) {
+            setActionError(createError.message || "Could not create session");
         } finally {
             setPendingActionId(null);
         }
@@ -161,7 +195,7 @@ export default function SessionsPage() {
     }
 
     return (<div className="sessions-page">
-      <PageHeader title="Parliamentary Sessions"/>
+      <PageHeader title="Parliamentary Sessions" actions={<Button onClick={openCreateModal}>New Session</Button>}/>
 
       {loadError ? <Toast variant="error" title="Session action failed" description={loadError}/> : null}
 
@@ -170,16 +204,19 @@ export default function SessionsPage() {
           <p className="page-loading__text">Loading sessions...</p>
         </div>) : (<Table columns={columns} data={sessions} rowKey={(row) => row.id} emptyMessage="No sessions have been configured."/>)}
 
-      <Modal isOpen={isModalOpen} onClose={closeModal} title="Edit Session" description="Update this parliamentary session's details." footer={<>
+      <Modal isOpen={isModalOpen} onClose={closeModal} title={editingSession ? "Edit Session" : "New Session"} description={editingSession ? "Update this parliamentary session's details." : "Create a new parliamentary session."} footer={<>
             <Button variant="secondary" onClick={closeModal}>
               Cancel
             </Button>
-            <Button onClick={saveSession} disabled={pendingActionId === editingSession?.id}>
-              Save Changes
+            <Button onClick={editingSession ? saveSession : createSession} disabled={pendingActionId === (editingSession?.id ?? "new")}>
+              {editingSession ? "Save Changes" : "Create Session"}
             </Button>
           </>}>
-        {actionError ? <Toast variant="error" title="Could not save session" description={actionError}/> : null}
+        {actionError ? <Toast variant="error" title={editingSession ? "Could not save session" : "Could not create session"} description={actionError}/> : null}
         <div className="sessions-page__form">
+          {!editingSession ? (
+            <Input label="Session Code" placeholder="session-13-2027" value={formValues.code} onChange={(event) => setFormValues((current) => ({ ...current, code: event.target.value }))}/>
+          ) : null}
           <Input label="Session Name" value={formValues.name} onChange={(event) => setFormValues((current) => ({ ...current, name: event.target.value }))}/>
           <div className="sessions-page__dates">
             <Input label="Start Date" type="date" value={formValues.startDate} onChange={(event) => setFormValues((current) => ({ ...current, startDate: event.target.value }))}/>
