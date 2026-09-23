@@ -23,7 +23,11 @@ export function ResultCard({ result, expandable = false, initiallyExpanded = fal
             {sessionLabel ? <SessionBadge label={sessionLabel}/> : null}
           </div>
           <div>
-            <h3 className="result-card__title">{result.match.title}</h3>
+            <h3 className="result-card__title">
+              <Link href={`/results/${result.match.id}`} className="result-card__title-link">
+                {result.match.title}
+              </Link>
+            </h3>
             <p className="result-card__meta">
               {result.match.member} {result.match.ministry ? `• ${result.match.ministry}` : ""} • {formatDate(result.match.date)}
             </p>
