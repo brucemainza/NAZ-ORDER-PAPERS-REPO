@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Toast } from "@/components/ui/Toast";
 import { useDocumentUpload } from "@/hooks/useDocumentUpload";
 import { useSubmit } from "@/hooks/useSubmit";
+import { ZAMBIAN_MINISTRIES } from "@/lib/ministries";
 
 const submitSchema = z
     .object({
@@ -192,13 +193,19 @@ export function SubmitForm({ sessions, itemTypes }) {
                             <option value="Oral">Oral answer</option>
                             <option value="Written">Written answer</option>
                         </Select>
-                        <Input
+                        <Select
                             id="ministry"
                             label="Ministry / Department"
-                            placeholder="Ministry of Health"
                             error={errors.ministry?.message}
                             {...register("ministry")}
-                        />
+                        >
+                            <option value="">Select a ministry</option>
+                            {ZAMBIAN_MINISTRIES.map((ministry) => (
+                                <option key={ministry} value={ministry}>
+                                    {ministry}
+                                </option>
+                            ))}
+                        </Select>
                     </>
                 ) : (
                     <div className="submit-form__motion-note">Ministry field is not required for motions.</div>
