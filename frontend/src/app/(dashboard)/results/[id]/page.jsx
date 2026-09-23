@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { ResultCard } from "@/components/search/ResultCard";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -9,6 +9,7 @@ import { Button, buttonStyles } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
+import { Modal } from "@/components/ui/Modal";
 import { Spinner } from "@/components/ui/Spinner";
 import { Textarea } from "@/components/ui/Textarea";
 import { Toast } from "@/components/ui/Toast";
@@ -29,6 +30,7 @@ const statusVariantMap = {
 
 export default function ResultDetailPage() {
     const params = useParams();
+    const router = useRouter();
     const { user } = useAuthContext();
     const [submission, setSubmission] = useState(null);
     const [matches, setMatches] = useState([]);
@@ -283,9 +285,6 @@ export default function ResultDetailPage() {
               </div>
             </>) : (<p className="result-detail__workflow-unavailable">Workflow actions are unavailable while this item is {submission.status}.</p>)}
 
-            {workflowResult ? (<div className="result-detail__panel-field">
-              <Toast variant="success" title={`${workflowResult.action} recorded`} description={`The submission is now ${workflowResult.status}.`}/>
-            </div>) : null}
             {workflowError ? (<div className="result-detail__panel-field">
               <Toast variant="error" title="Workflow error" description={workflowError}/>
             </div>) : null}
@@ -333,5 +332,20 @@ export default function ResultDetailPage() {
           </Card>) : null}
         </div>
       </div>
+
+      <Modal
+        isOpen={Boolean(workflowResult)}
+        onClose={() => setWorkflowResult(null)}
+        title={workflowResult ? `${workflowResult.action} recorded` : ""}
+        description={workflowResult ? `This submission is now ${workflowResult.status}.` : ""}
+        footer={<>
+              <Button variant="secondary" onClick={() => setWorkflowResult(null)}>
+                Close
+              </Button>
+              <Button onClick={() => router.push("/search")}>
+                Back to Submissions
+              </Button>
+            </>}
+      />
     </div>);
 }
