@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { ResultCard } from "@/components/search/ResultCard";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -9,6 +9,7 @@ import { Button, buttonStyles } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
+import { Modal } from "@/components/ui/Modal";
 import { Spinner } from "@/components/ui/Spinner";
 import { Textarea } from "@/components/ui/Textarea";
 import { Toast } from "@/components/ui/Toast";
@@ -29,6 +30,7 @@ const statusVariantMap = {
 
 export default function ResultDetailPage() {
     const params = useParams();
+    const router = useRouter();
     const { user } = useAuthContext();
     const [submission, setSubmission] = useState(null);
     const [matches, setMatches] = useState([]);
@@ -94,6 +96,15 @@ export default function ResultDetailPage() {
     ];
     const isWorkflowReviewable = submission?.status === "Under Review";
     const canSchedule = hasPermission(user, "schedule_item") && submission?.status === "Approved";
+    const recordSession = useMemo(
+        () => sessions.find((session) => session.id === submission?.sessionId),
+        [sessions, submission]
+    );
+    const todayIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
+    const minSittingDate = recordSession
+        ? (recordSession.start_date > todayIso ? recordSession.start_date : todayIso)
+        : todayIso;
+    const maxSittingDate = recordSession?.end_date;
 
     const recordDecision = async () => {
         setIsSaving(true);
@@ -245,22 +256,25 @@ export default function ResultDetailPage() {
         </div>
 
         <div className="result-detail__aside">
-          {canSchedule || scheduleResult ? (<Card className="result-detail__panel">
+          {canSchedule ? (<Card className="result-detail__panel">
             <h2 className="result-detail__panel-title">Schedule Sitting</h2>
             <p className="result-detail__panel-description">Assign this approved item to a specific sitting date.</p>
-            {canSchedule ? (<>
-              <div className="result-detail__panel-field">
-                <Input type="date" label="Sitting Date" value={sittingDate} onChange={(event) => setSittingDate(event.target.value)}/>
-              </div>
-              <div className="result-detail__panel-field">
-                <Button fullWidth onClick={scheduleSubmission} disabled={isScheduling || !sittingDate}>
-                  {isScheduling ? "Scheduling..." : "Schedule Item"}
-                </Button>
-              </div>
-            </>) : null}
-            {scheduleResult ? (<div className="result-detail__panel-field">
-              <Toast variant="success" title="Item scheduled" description={`Scheduled for ${formatDate(scheduleResult.sitting_date)}.`}/>
-            </div>) : null}
+            <div className="result-detail__panel-field">
+              <Input
+                type="date"
+                label="Sitting Date"
+                value={sittingDate}
+                min={minSittingDate}
+                max={maxSittingDate}
+                hint={recordSession ? `Must fall within ${recordSession.name} (${formatDate(recordSession.start_date)} – ${formatDate(recordSession.end_date)}).` : undefined}
+                onChange={(event) => setSittingDate(event.target.value)}
+              />
+            </div>
+            <div className="result-detail__panel-field">
+              <Button fullWidth onClick={scheduleSubmission} disabled={isScheduling || !sittingDate}>
+                {isScheduling ? "Scheduling..." : "Schedule Item"}
+              </Button>
+            </div>
             {scheduleError ? (<div className="result-detail__panel-field">
               <Toast variant="error" title="Scheduling error" description={scheduleError}/>
             </div>) : null}
@@ -283,9 +297,6 @@ export default function ResultDetailPage() {
               </div>
             </>) : (<p className="result-detail__workflow-unavailable">Workflow actions are unavailable while this item is {submission.status}.</p>)}
 
-            {workflowResult ? (<div className="result-detail__panel-field">
-              <Toast variant="success" title={`${workflowResult.action} recorded`} description={`The submission is now ${workflowResult.status}.`}/>
-            </div>) : null}
             {workflowError ? (<div className="result-detail__panel-field">
               <Toast variant="error" title="Workflow error" description={workflowError}/>
             </div>) : null}
@@ -333,5 +344,35 @@ export default function ResultDetailPage() {
           </Card>) : null}
         </div>
       </div>
+
+      <Modal
+        isOpen={Boolean(workflowResult)}
+        onClose={() => setWorkflowResult(null)}
+        title={workflowResult ? `${workflowResult.action} recorded` : ""}
+        description={workflowResult ? `This submission is now ${workflowResult.status}.` : ""}
+        footer={<>
+              <Button variant="secondary" onClick={() => setWorkflowResult(null)}>
+                Close
+              </Button>
+              <Button onClick={() => router.push("/search")}>
+                Back to Submissions
+              </Button>
+            </>}
+      />
+
+      <Modal
+        isOpen={Boolean(scheduleResult)}
+        onClose={() => setScheduleResult(null)}
+        title="Item scheduled"
+        description={scheduleResult ? `This item is scheduled to take place on ${formatDate(scheduleResult.sitting_date)}.` : ""}
+        footer={<>
+              <Button variant="secondary" onClick={() => setScheduleResult(null)}>
+                Close
+              </Button>
+              <Button onClick={() => router.push("/search")}>
+                Back to Submissions
+              </Button>
+            </>}
+      />
     </div>);
 }
