@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 
-const PAGE_SIZE = 15;
+const PAGE_SIZE = 20;
 
 export default function SearchPage() {
     const [sessions, setSessions] = useState([]);
@@ -17,12 +17,14 @@ export default function SearchPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
     const [hasMore, setHasMore] = useState(false);
+    const [responseTimeMs, setResponseTimeMs] = useState(null);
 
     const loadRecords = useCallback(async (applyFilters = {}, nextPage = 1) => {
         const filtersToUse = Object.keys(applyFilters).length > 0 ? applyFilters : filters;
         setFilters(filtersToUse);
         setIsLoading(true);
         setError(null);
+        const startedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
         try {
             const offset = (nextPage - 1) * PAGE_SIZE;
             const keywordQuery = filtersToUse.query?.trim() || "";
@@ -104,6 +106,8 @@ export default function SearchPage() {
             setRecords([]);
             setHasMore(false);
         } finally {
+            const finishedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+            setResponseTimeMs(Math.round(finishedAt - startedAt));
             setIsLoading(false);
         }
     }, [filters]);
@@ -126,6 +130,12 @@ export default function SearchPage() {
       <PageHeader title="Submissions Register" showBreadcrumbs={false}/>
 
       <SearchBar sessions={sessions} onSearch={handleSearch} isLoading={isLoading}/>
+
+      {responseTimeMs !== null ? (<p className="search-page__timing">
+          {isLoading
+            ? "Searching..."
+            : `Results returned in ${responseTimeMs} ms${records.length ? ` · ${records.length} result${records.length === 1 ? "" : "s"} shown` : ""}`}
+        </p>) : null}
 
       <section className="search-page__results">
         {isLoading ? (<div className="page-loading">
