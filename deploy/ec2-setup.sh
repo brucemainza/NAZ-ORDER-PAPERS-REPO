@@ -9,8 +9,8 @@
 #
 # Optional environment overrides:
 #   PUBLIC_HOST        address users type in the browser (default: public IP)
-#   ADMIN_EMPLOYEE_ID  first admin login ID (default: ADMIN-001)
-#   ADMIN_PASSWORD     first admin password (default: generated, printed once)
+#   ADMIN_EMPLOYEE_ID  first admin login ID (default: EMP-001)
+#   ADMIN_PASSWORD     first admin password (default: naz@2026)
 #   SKIP_OLLAMA=1      skip Ollama; AI search falls back to keyword search
 
 set -Eeuo pipefail
@@ -29,7 +29,7 @@ cd "$REPO_DIR"
 
 ENV_FILE=.env.ec2
 EMBED_MODEL=embeddinggemma:300m
-ADMIN_EMPLOYEE_ID=${ADMIN_EMPLOYEE_ID:-ADMIN-001}
+ADMIN_EMPLOYEE_ID=${ADMIN_EMPLOYEE_ID:-EMP-001}
 CREDENTIALS_FILE=/root/naz-admin-credentials.txt
 MIN_COMPOSE=2.24.4 # first release with the `!override` tag used by the EC2 file
 
@@ -248,9 +248,7 @@ if [[ $status != 200 ]]; then
 fi
 
 log "Ensuring the first administrator account exists"
-if [[ -z ${ADMIN_PASSWORD:-} ]]; then
-  ADMIN_PASSWORD=$(openssl rand -hex 8)
-fi
+ADMIN_PASSWORD=${ADMIN_PASSWORD:-naz@2026}
 export ADMIN_PASSWORD
 admin_result=$(compose run --rm -T -e ADMIN_PASSWORD migrate \
   python -m scripts.create_admin --employee-id "$ADMIN_EMPLOYEE_ID")

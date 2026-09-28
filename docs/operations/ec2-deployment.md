@@ -13,7 +13,7 @@ On a fresh Ubuntu 22.04/24.04 or Amazon Linux 2023 instance (t3.medium or
 larger, 30GB root volume, security group allowing inbound TCP 22 and 80):
 
 ```bash
-git clone https://github.com/mainzabruce/NAZ-ORDER-PAPERS-REPO.git naz-order-papers
+git clone https://github.com/brucemainza/NAZ-ORDER-PAPERS-REPO.git naz-order-papers
 cd naz-order-papers
 sudo bash deploy/ec2-setup.sh
 ```
@@ -21,10 +21,14 @@ sudo bash deploy/ec2-setup.sh
 `deploy/ec2-setup.sh` installs Docker, the Compose and Buildx plugins, Ollama
 and the embedding model; adds swap on small instances; generates `.env.ec2`
 with random secrets for plain HTTP on the public IP; builds and migrates;
-starts the stack; creates the first Administrator (`ADMIN-001`, password
-printed once and saved to `/root/naz-admin-credentials.txt`); and verifies the
-site answers on port 80. Rerun it after `git pull` to deploy updates; it keeps
-the existing `.env.ec2` and database. The manual steps below are equivalent.
+starts the stack; creates the first Administrator (`EMP-001`, password
+`naz@2026` unless `ADMIN_PASSWORD` is set, also saved to
+`/root/naz-admin-credentials.txt`); and verifies the site answers on port 80.
+Rerun it after `git pull` to deploy updates; it keeps the existing `.env.ec2`
+and database. The manual steps below are equivalent.
+
+Change the default `naz@2026` password after the first login — it is a
+bootstrap credential, not meant for ongoing use.
 
 The EC2 overlay gates startup on the backend's `/livez`, not `/readyz`:
 `/readyz` also reports dead-lettered background jobs (for example embeddings
@@ -62,7 +66,7 @@ docker compose -f docker-compose.yml -f docker-compose.ec2.yml \
 # A fresh database has no user accounts. Create the first Administrator:
 ADMIN_PASSWORD='choose-a-strong-password' docker compose -f docker-compose.yml \
   -f docker-compose.ec2.yml --env-file .env.ec2 run --rm -T -e ADMIN_PASSWORD \
-  migrate python -m scripts.create_admin --employee-id ADMIN-001
+  migrate python -m scripts.create_admin --employee-id EMP-001
 ```
 
 On the EC2 host, configure Ollama to listen on an address reachable from the

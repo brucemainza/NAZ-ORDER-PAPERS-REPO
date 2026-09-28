@@ -1,7 +1,7 @@
 """Create the first Administrator account on a fresh database.
 
 Usage:
-    ADMIN_PASSWORD=... python -m scripts.create_admin --employee-id ADMIN-001
+    ADMIN_PASSWORD=... python -m scripts.create_admin --employee-id EMP-001
 
 The password is read from the ADMIN_PASSWORD environment variable so it never
 appears in the process list. An existing account is left untouched unless
@@ -63,7 +63,7 @@ def ensure_admin(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Create the first Administrator")
-    parser.add_argument("--employee-id", default="ADMIN-001")
+    parser.add_argument("--employee-id", default="EMP-001")
     parser.add_argument("--name", default="System Administrator")
     parser.add_argument("--reset-password", action="store_true")
     args = parser.parse_args()
