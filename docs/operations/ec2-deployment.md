@@ -1,8 +1,35 @@
 # EC2 Deployment
 
 This deployment uses Docker Compose on one EC2 host. Only the Next.js service is
-published to the host, on `127.0.0.1:3000`; terminate HTTPS with Nginx or an
-Application Load Balancer in front of it.
+published to the host. By default it listens on `127.0.0.1:3000` behind an
+HTTPS reverse proxy (Nginx or an Application Load Balancer); for a plain-HTTP
+deployment on the instance's public IP, set `FRONTEND_PUBLISH=80` and
+`SECURE_COOKIES=false` in `.env.ec2` (browsers drop `Secure` cookies over
+HTTP, so logins would not persist otherwise).
+
+## Quick start (one command)
+
+On a fresh Ubuntu 22.04/24.04 or Amazon Linux 2023 instance (t3.medium or
+larger, 30GB root volume, security group allowing inbound TCP 22 and 80):
+
+```bash
+git clone https://github.com/mainzabruce/NAZ-ORDER-PAPERS-REPO.git naz-order-papers
+cd naz-order-papers
+sudo bash deploy/ec2-setup.sh
+```
+
+`deploy/ec2-setup.sh` installs Docker, the Compose and Buildx plugins, Ollama
+and the embedding model; adds swap on small instances; generates `.env.ec2`
+with random secrets for plain HTTP on the public IP; builds and migrates;
+starts the stack; creates the first Administrator (`ADMIN-001`, password
+printed once and saved to `/root/naz-admin-credentials.txt`); and verifies the
+site answers on port 80. Rerun it after `git pull` to deploy updates; it keeps
+the existing `.env.ec2` and database. The manual steps below are equivalent.
+
+The EC2 overlay gates startup on the backend's `/livez`, not `/readyz`:
+`/readyz` also reports dead-lettered background jobs (for example embeddings
+attempted while Ollama was down), and that must not stop the frontend from
+starting. Monitor `/readyz` separately.
 
 ## Before launch
 
@@ -31,6 +58,11 @@ docker compose -f docker-compose.yml -f docker-compose.ec2.yml \
   --env-file .env.ec2 run --rm migrate
 docker compose -f docker-compose.yml -f docker-compose.ec2.yml \
   --env-file .env.ec2 up -d db backend worker frontend
+
+# A fresh database has no user accounts. Create the first Administrator:
+ADMIN_PASSWORD='choose-a-strong-password' docker compose -f docker-compose.yml \
+  -f docker-compose.ec2.yml --env-file .env.ec2 run --rm -T -e ADMIN_PASSWORD \
+  migrate python -m scripts.create_admin --employee-id ADMIN-001
 ```
 
 On the EC2 host, configure Ollama to listen on an address reachable from the
@@ -45,9 +77,9 @@ Use an immutable `IMAGE_TAG` for releases rather than reusing `latest`:
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.ec2.yml \
   --env-file .env.ec2 pull
-docker compose -f docker-compose.yml -f docker-compose.ec2 \
+docker compose -f docker-compose.yml -f docker-compose.ec2.yml \
   --env-file .env.ec2 run --rm migrate
-docker compose -f docker-compose.yml -f docker-compose.ec2 \
+docker compose -f docker-compose.yml -f docker-compose.ec2.yml \
   --env-file .env.ec2 up -d backend worker frontend
 ```
 
@@ -78,7 +110,7 @@ administrative vault; never commit it.
 docker compose -f docker-compose.yml -f docker-compose.ec2.yml \
   --env-file .env.ec2 ps
 curl -fsS https://orders.example.gov.zm/ >/dev/null
-docker compose -f docker-compose.yml -f docker-compose.ec2 \
+docker compose -f docker-compose.yml -f docker-compose.ec2.yml \
   --env-file .env.ec2 exec -T backend python -c \
   "import urllib.request; urllib.request.urlopen('http://localhost:8000/readyz')"
 ```

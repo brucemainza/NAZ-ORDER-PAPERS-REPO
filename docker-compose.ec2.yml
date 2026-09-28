@@ -22,6 +22,17 @@ services:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:?OLLAMA_BASE_URL is required}
       OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-embeddinggemma:300m}
     volumes: !override []
+    # Gate startup on liveness: /readyz also fails on dead-lettered AI jobs,
+    # which would otherwise stop the frontend from starting. Monitor /readyz
+    # separately.
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request;
+          urllib.request.urlopen('http://localhost:8000/livez', timeout=3)
 
   worker:
     image: naz-order-papers-backend:${IMAGE_TAG:-latest}
@@ -32,13 +43,17 @@ services:
 
   frontend:
     image: naz-order-papers-frontend:${IMAGE_TAG:-latest}
+    # FRONTEND_PUBLISH=80 serves the app directly on the instance's port 80;
+    # the default keeps it on loopback behind an HTTPS reverse proxy.
     ports: !override
-      - "127.0.0.1:3000:3000"
+      - "${FRONTEND_PUBLISH:-127.0.0.1:3000}:3000"
     environment:
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       NEXT_PUBLIC_API_URL: ""
       NEXT_PUBLIC_BACKEND_URL: ""
       BACKEND_INTERNAL_URL: http://backend:8000
       NODE_ENV: production
-      SECURE_COOKIES: "true"
+      # Browsers discard Secure cookies over plain HTTP, so this must be
+      # "false" when the site is served on http:// (for example a bare IP).
+      SECURE_COOKIES: ${SECURE_COOKIES:-true}
     volumes: !override []

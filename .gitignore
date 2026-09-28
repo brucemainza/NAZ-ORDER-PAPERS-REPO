@@ -9,6 +9,7 @@ frontend/test-results
 frontend/.env.local
 frontend/.vercel
 backend/.env
+.env.ec2
 backend/.venv
 backend/**/__pycache__/
 backend/**/*.py[cod]
