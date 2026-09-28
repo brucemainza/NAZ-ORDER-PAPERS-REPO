@@ -322,8 +322,6 @@ export function SubmitForm({ sessions, itemTypes }) {
                             <p className="submit-form__duplicate-match-snippet">{match.snippet}</p>
                             <Link
                                 href={`/results/${match.source_record}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
                                 className="submit-form__duplicate-match-link"
                             >
                                 View document
